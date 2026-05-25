@@ -10,7 +10,7 @@ import Defaults
 import JellyfinAPI
 import SwiftUI
 
-struct LibraryHeader<ViewModel: ObservableObject>: View where ViewModel: AnyObject {
+struct LibraryHeader<ViewModel: ObservableObject & AnyObject>: View {
 
     // MARK: - Properties
 
@@ -49,40 +49,30 @@ struct LibraryHeader<ViewModel: ObservableObject>: View where ViewModel: AnyObje
 
                 HStack(spacing: 30) {
 
-                    Button(action: {
+                    FilterPillButton {
                         router.route(to: .filter(type: ItemFilterType.traits, viewModel: filterViewModel))
-                    }) {
-                        HStack(spacing: 10) {
-                            Text(filterButtonTitle)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                    } label: {
+                        Text(filterButtonTitle)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
 
                     Text(L10n.by.lowercased())
 
-                    Button(action: {
+                    FilterPillButton {
                         router.route(to: .filter(type: ItemFilterType.sortBy, viewModel: filterViewModel))
-                    }) {
-                        HStack(spacing: 10) {
-                            Text(sortButtonTitle)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                    } label: {
+                        Text(sortButtonTitle)
                     }
 
                     if filterViewModel.currentFilters.hasFilters {
-                        Button(action: {
+                        FilterPillButton {
                             filterViewModel.send(.reset())
-                        }) {
+                        } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "xmark.circle")
                                 Text(L10n.reset)
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
                         }
                     }
                 }
@@ -141,5 +131,43 @@ struct LibraryHeader<ViewModel: ObservableObject>: View where ViewModel: AnyObje
             }
         }
         return L10n.name.capitalized
+    }
+}
+
+/// Matches the look of `ListRowButton` from Settings: grey rounded-rect fill,
+/// focus brightens, `.buttonStyle(.card)` for native tvOS focus behavior.
+/// Unlike `ListRowButton`, accepts arbitrary label content (so callers can use
+/// HStack { Image; Text } for icon-bearing pills like Reset).
+private struct FilterPillButton<Label: View>: View {
+
+    @FocusState
+    private var isFocused: Bool
+
+    private let action: () -> Void
+    private let label: () -> Label
+
+    init(action: @escaping () -> Void, @ViewBuilder label: @escaping () -> Label) {
+        self.action = action
+        self.label = label
+    }
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(HierarchicalShapeStyle.secondary)
+                    .brightness(isFocused ? 0.25 : 0)
+
+                label()
+                    .foregroundStyle(HierarchicalShapeStyle.primary)
+                    .font(.body.weight(.bold))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+            }
+        }
+        .buttonStyle(.card)
+        .fixedSize()
+        .frame(maxHeight: 75)
+        .focused($isFocused)
     }
 }
