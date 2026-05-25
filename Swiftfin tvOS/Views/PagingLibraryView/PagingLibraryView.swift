@@ -258,7 +258,16 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
                 listItemView(item: item, posterType: posterType)
             }
         }
-        .header {
+        .onReachedBottomEdge(offset: .rows(3)) {
+            viewModel.send(.getNextPage)
+        }
+        .proxy(collectionVGridProxy)
+        .scrollIndicators(.hidden)
+        // `.header` modifier is not in the upstream CollectionVGrid version
+        // this project depends on, so the title/filter header is attached via
+        // `safeAreaInset` instead. Pad the top so the header doesn't tuck
+        // under the tvOS top nav.
+        .safeAreaInset(edge: .top, spacing: 0) {
             if let title = viewModel.parent?.displayTitle, title.isNotEmpty,
                let filterViewModel = viewModel.filterViewModel, !enabledDrawerFilters.isEmpty
             {
@@ -267,13 +276,9 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
                     viewModel: viewModel,
                     filterViewModel: filterViewModel
                 )
+                .safeAreaPadding(.top, 150)
             }
         }
-        .onReachedBottomEdge(offset: .rows(3)) {
-            viewModel.send(.getNextPage)
-        }
-        .proxy(collectionVGridProxy)
-        .scrollIndicators(.hidden)
     }
 
     // MARK: Inner Content View
