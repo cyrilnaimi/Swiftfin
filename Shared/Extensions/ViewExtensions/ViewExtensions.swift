@@ -444,8 +444,10 @@ extension View {
     // MARK: debug
 
     // Useful modifiers during development for layout without RocketSim
+    //
+    // Note: NOT gated by `#if DEBUG` because call sites (e.g. `SplitTimestamp.swift`)
+    // are unguarded, which breaks Release builds. Keep these usable in all configs.
 
-    #if DEBUG
     func debugBackground<S: ShapeStyle>(_ fill: S = .red.opacity(0.5)) -> some View {
         background {
             Rectangle()
@@ -481,7 +483,6 @@ extension View {
         debugVLine(fill)
             .debugHLine(fill)
     }
-    #endif
 }
 
 private struct OnFrameChangedValue: Equatable {
