@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Factory
@@ -13,7 +13,9 @@ import JellyfinAPI
 import Logging
 
 extension Container {
-    var downloadManager: Factory<DownloadManager> { self { DownloadManager() }.shared }
+    var downloadManager: Factory<DownloadManager> {
+        self { DownloadManager() }.shared
+    }
 }
 
 class DownloadManager: ObservableObject {
@@ -23,22 +25,9 @@ class DownloadManager: ObservableObject {
     @Published
     private(set) var downloads: [DownloadTask] = []
 
-    fileprivate init() {
-
-        createDownloadDirectory()
-    }
-
-    private func createDownloadDirectory() {
-
-        try? FileManager.default.createDirectory(
-            at: URL.downloads,
-            withIntermediateDirectories: true
-        )
-    }
-
     func clearTmp() {
         do {
-            try Folder(path: URL.tmp.path).files.delete()
+            try Folder(path: URL.temporaryDirectory.path).files.delete()
 
             logger.trace("Cleared tmp directory")
         } catch {
@@ -80,7 +69,7 @@ class DownloadManager: ObservableObject {
 
     func downloadedItems() -> [DownloadTask] {
         do {
-            let downloadContents = try FileManager.default.contentsOfDirectory(atPath: URL.downloads.path)
+            let downloadContents = try FileManager.default.contentsOfDirectory(atPath: URL.downloadsDirectory.path)
             return downloadContents.compactMap(parseDownloadItem(with:))
         } catch {
             logger.error("Error retrieving all downloads: \(error.localizedDescription)")
@@ -91,7 +80,7 @@ class DownloadManager: ObservableObject {
 
     private func parseDownloadItem(with id: String) -> DownloadTask? {
 
-        let itemMetadataFile = URL.downloads
+        let itemMetadataFile = URL.downloadsDirectory
             .appendingPathComponent(id)
             .appendingPathComponent("Metadata")
             .appendingPathComponent("Item.json")

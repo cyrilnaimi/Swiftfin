@@ -3,12 +3,13 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import SwiftUI
 
 // TODO: selected icon
+@MainActor
 struct TabItem: Identifiable, Hashable {
 
     let content: AnyView
@@ -42,12 +43,14 @@ struct TabItem: Identifiable, Hashable {
 
 extension TabItem {
 
-    static let home = TabItem(
-        id: "home",
-        title: L10n.home,
-        systemImage: "house"
-    ) {
-        HomeView()
+    static var home: TabItem {
+        TabItem(
+            id: "home",
+            title: L10n.home,
+            systemImage: "house"
+        ) {
+            HomeView()
+        }
     }
 
     static func library(
@@ -69,28 +72,33 @@ extension TabItem {
         }
     }
 
-    static let media = TabItem(
-        id: "media",
-        title: L10n.media,
-        systemImage: "rectangle.stack.fill"
-    ) {
-        MediaView()
+    static var media: TabItem {
+        TabItem(
+            id: "media",
+            title: L10n.media,
+            systemImage: "rectangle.stack.fill"
+        ) {
+            MediaView()
+        }
     }
 
-    static let search = TabItem(
-        id: "search",
-        title: L10n.search,
-        systemImage: "magnifyingglass"
-    ) {
-        SearchView()
+    static var search: TabItem {
+        TabItem(
+            id: "search",
+            title: L10n.search,
+            systemImage: "magnifyingglass"
+        ) {
+            SearchView()
+        }
     }
 
-    static let settings = TabItem(
-        id: "settings",
-        title: L10n.settings,
-        systemImage: "gearshape",
-        labelStyle: .iconOnly
-    ) {
-        SettingsView()
+    static var settings: TabItem {
+        TabItem(
+            id: "settings",
+            title: L10n.settings,
+            systemImage: "gearshape"
+        ) {
+            SettingsView()
+        }
     }
 }

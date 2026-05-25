@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import JellyfinAPI
@@ -21,13 +21,13 @@ extension HomeView {
 
         private func itemSelectorImageSource(for item: BaseItemDto) -> ImageSource {
             if item.type == .episode {
-                return item.seriesImageSource(
+                item.seriesImageSource(
                     .logo,
                     maxWidth: UIScreen.main.bounds.width * 0.4,
                     maxHeight: 200
                 )
             } else {
-                return item.imageSource(
+                item.imageSource(
                     .logo,
                     maxWidth: UIScreen.main.bounds.width * 0.4,
                     maxHeight: 200
@@ -36,24 +36,23 @@ extension HomeView {
         }
 
         var body: some View {
-            CinematicItemSelector(items: viewModel.elements.elements)
-                .topContent { item in
-                    ImageView(itemSelectorImageSource(for: item))
-                        .placeholder { _ in
-                            EmptyView()
-                        }
-                        .failure {
-                            Text(item.displayTitle)
-                                .font(.largeTitle)
-                                .fontWeight(.semibold)
-                        }
-                        .edgePadding(.leading)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(height: 200, alignment: .bottomLeading)
-                }
-                .onSelect { item in
-                    router.route(to: .item(item: item))
-                }
+            CinematicItemSelector(items: viewModel.elements.elements) { item in
+                router.route(to: .item(item: item))
+            }
+            .topContent { item in
+                ImageView(itemSelectorImageSource(for: item))
+                    .placeholder { _ in
+                        EmptyView()
+                    }
+                    .failure {
+                        Text(item.displayTitle)
+                            .font(.largeTitle)
+                            .fontWeight(.semibold)
+                    }
+                    .edgePadding(.leading)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 200, alignment: .bottomLeading)
+            }
         }
     }
 }

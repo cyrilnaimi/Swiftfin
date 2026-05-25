@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
@@ -73,6 +73,7 @@ class VideoPlayerContainerState: ObservableObject {
     var isPresentingOverlay: Bool = false {
         didSet {
             setPlaybackControlsVisibility()
+            presentationControllerShouldDismiss = isPresentingOverlay && !isPresentingSupplement
 
             if isPresentingOverlay, !isPresentingSupplement {
                 timer.poke()
@@ -84,7 +85,7 @@ class VideoPlayerContainerState: ObservableObject {
     private(set) var isPresentingSupplement: Bool = false {
         didSet {
             setPlaybackControlsVisibility()
-            presentationControllerShouldDismiss = !isPresentingSupplement
+            presentationControllerShouldDismiss = isPresentingOverlay && !isPresentingSupplement
 
             if isPresentingSupplement {
                 timer.stop()
@@ -107,7 +108,7 @@ class VideoPlayerContainerState: ObservableObject {
     }
 
     @Published
-    var presentationControllerShouldDismiss: Bool = true
+    var presentationControllerShouldDismiss: Bool = false
 
     @Published
     var selectedSupplement: (any MediaPlayerSupplement)? = nil {
@@ -117,10 +118,11 @@ class VideoPlayerContainerState: ObservableObject {
     }
 
     @Published
-    var supplementOffset: CGFloat = 0.0
-
-    @Published
     var centerOffset: CGFloat = 0.0
+    @Published
+    var isProgressBarFocused: Bool = false
+
+    var originalPlaybackRate: Float?
 
     let jumpProgressObserver: JumpProgressObserver = .init()
     let scrubbedSeconds: PublishedBox<Duration> = .init(initialValue: .zero)
@@ -134,6 +136,33 @@ class VideoPlayerContainerState: ObservableObject {
     var panHandlingAction: (any _PanHandlingAction)?
     var didSwipe: Bool = false
     var lastTapLocation: CGPoint?
+    #endif
+
+    #if os(tvOS)
+    @Published
+    var isPresentingCloseConfirmation: Bool = false
+
+    var hasEnteredScrubMode: Bool = false
+    var scrubOriginSeconds: Duration?
+
+    func commitScrub() {
+        guard hasEnteredScrubMode else { return }
+        manager?.proxy?.setSeconds(scrubbedSeconds.value)
+        manager?.setPlaybackRequestStatus(status: .playing)
+        isScrubbing = false
+        hasEnteredScrubMode = false
+        scrubOriginSeconds = nil
+    }
+
+    func cancelScrub() {
+        guard hasEnteredScrubMode else { return }
+        if let manager {
+            scrubbedSeconds.value = manager.seconds
+        }
+        isScrubbing = false
+        hasEnteredScrubMode = false
+        scrubOriginSeconds = nil
+    }
     #endif
 
     private var jumpProgressCancellable: AnyCancellable?

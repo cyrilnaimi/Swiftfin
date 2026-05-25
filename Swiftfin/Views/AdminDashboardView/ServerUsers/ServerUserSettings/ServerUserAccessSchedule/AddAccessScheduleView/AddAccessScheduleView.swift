@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import JellyfinAPI
@@ -11,15 +11,11 @@ import SwiftUI
 
 struct AddAccessScheduleView: View {
 
-    // MARK: - Observed & Environment Objects
-
-    @Router
-    private var router
-
     @ObservedObject
     private var viewModel: ServerUserAdminViewModel
 
-    // MARK: - Access Schedule Variables
+    @Router
+    private var router
 
     @State
     private var tempPolicy: UserPolicy
@@ -29,13 +25,6 @@ struct AddAccessScheduleView: View {
     private var startTime: Date = Calendar.current.startOfDay(for: Date())
     @State
     private var endTime: Date = Calendar.current.startOfDay(for: Date()).addingTimeInterval(+3600)
-
-    // MARK: - Error State
-
-    @State
-    private var error: Error?
-
-    // MARK: - Initializer
 
     init(viewModel: ServerUserAdminViewModel) {
         self.viewModel = viewModel
@@ -61,19 +50,17 @@ struct AddAccessScheduleView: View {
             return nil
         }
 
-        // AccessSchedule Hours are formatted as 23.5 == 11:30pm or 8.25 == 8:15am
+        /// AccessSchedule Hours are formatted as 23.5 == 11:30pm or 8.25 == 8:15am
         let startDouble = Double(startHour) + Double(startMinute) / 60.0
         let endDouble = Double(endHour) + Double(endMinute) / 60.0
 
-        // AccessSchedule should have valid Start & End Hours
-        let newSchedule = AccessSchedule(
+        /// AccessSchedule should have valid Start & End Hours
+        return AccessSchedule(
             dayOfWeek: selectedDay,
             endHour: endDouble,
             startHour: startDouble,
             userID: viewModel.user.id
         )
-
-        return newSchedule
     }
 
     private var isDuplicateSchedule: Bool {
@@ -88,48 +75,7 @@ struct AddAccessScheduleView: View {
         }
     }
 
-    // MARK: - Body
-
     var body: some View {
-        contentView
-            .navigationTitle(L10n.addAccessSchedule.localizedCapitalized)
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarCloseButton {
-                router.dismiss()
-            }
-            .topBarTrailing {
-                if viewModel.backgroundStates.contains(.refreshing) {
-                    ProgressView()
-                }
-                if viewModel.backgroundStates.contains(.updating) {
-                    Button(L10n.cancel) {
-                        viewModel.send(.cancel)
-                    }
-                    .buttonStyle(.toolbarPill(.red))
-                } else {
-                    Button(L10n.save) {
-                        saveSchedule()
-                    }
-                    .buttonStyle(.toolbarPill)
-                    .disabled(!isValidRange)
-                }
-            }
-            .onReceive(viewModel.events) { event in
-                switch event {
-                case let .error(eventError):
-                    UIDevice.feedback(.error)
-                    error = eventError
-                case .updated:
-                    UIDevice.feedback(.success)
-                    router.dismiss()
-                }
-            }
-            .errorMessage($error)
-    }
-
-    // MARK: - Content View
-
-    private var contentView: some View {
         Form {
             Section(L10n.dayOfWeek) {
                 Picker(L10n.dayOfWeek, selection: $selectedDay) {
@@ -164,25 +110,46 @@ struct AddAccessScheduleView: View {
                 }
             }
         }
-    }
-
-    // MARK: - Save Schedule
-
-    private func saveSchedule() {
-
-        guard isValidRange, let newSchedule else {
-            error = JellyfinAPIError(L10n.accessScheduleInvalidTime)
-            return
+        .backport
+        .toolbarTitleDisplayMode(.inline)
+        .navigationTitle(L10n.addAccessSchedule.localizedCapitalized)
+        .navigationBarCloseButton {
+            router.dismiss()
         }
-
-        guard !isDuplicateSchedule else {
-            error = JellyfinAPIError(L10n.scheduleAlreadyExists)
-            return
+        .refreshable {
+            viewModel.refresh()
         }
+        .topBarTrailing {
 
-        tempPolicy.accessSchedules = tempPolicy.accessSchedules
-            .appendedOrInit(newSchedule)
+            if viewModel.background.is(.refreshing) {
+                ProgressView()
+            }
 
-        viewModel.send(.updatePolicy(tempPolicy))
+            if viewModel.background.is(.updating) {
+                Button(L10n.cancel) {
+                    viewModel.cancel()
+                }
+                .buttonStyle(.toolbarPill(.red))
+            } else {
+                Button(L10n.save) {
+                    if let newSchedule {
+                        tempPolicy.accessSchedules = tempPolicy.accessSchedules
+                            .appendedOrInit(newSchedule)
+
+                        viewModel.updatePolicy(tempPolicy)
+                    }
+                }
+                .buttonStyle(.toolbarPill)
+                .disabled(!isValidRange || isDuplicateSchedule)
+            }
+        }
+        .onReceive(viewModel.events) { event in
+            switch event {
+            case .updated:
+                UIDevice.feedback(.success)
+                router.dismiss()
+            }
+        }
+        .errorMessage($viewModel.error)
     }
 }

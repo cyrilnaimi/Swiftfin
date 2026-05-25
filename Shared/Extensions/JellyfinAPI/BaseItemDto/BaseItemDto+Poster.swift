@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -91,9 +91,9 @@ extension BaseItemDto: Poster {
         case .episode:
             if Defaults[.Customization.Episodes.useSeriesLandscapeBackdrop] {
                 [
+                    imageSource(.primary, maxWidth: maxWidth, quality: quality),
                     seriesImageSource(.thumb, maxWidth: maxWidth, quality: quality),
                     seriesImageSource(.backdrop, maxWidth: maxWidth, quality: quality),
-                    imageSource(.primary, maxWidth: maxWidth, quality: quality),
                 ]
             } else {
                 [imageSource(.primary, maxWidth: maxWidth, quality: quality)]

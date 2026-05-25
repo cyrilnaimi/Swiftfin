@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import SwiftUI
@@ -12,20 +12,12 @@ extension SeriesEpisodeSelector {
 
     struct LoadingCard: View {
 
-        private var onSelect: () -> Void
-
-        init() {
-            self.onSelect = {}
-        }
-
-        func onSelect(perform action: @escaping () -> Void) -> Self {
-            copy(modifying: \.onSelect, with: action)
-        }
+        let action: () -> Void
 
         var body: some View {
             VStack(alignment: .leading) {
                 Button {
-                    onSelect()
+                    action()
                 } label: {
                     Color.secondarySystemFill
                         .opacity(0.75)
@@ -44,6 +36,10 @@ extension SeriesEpisodeSelector {
                 )
                 .redacted(reason: .placeholder)
             }
+        }
+
+        init(_ action: @escaping () -> Void = {}) {
+            self.action = action
         }
     }
 }

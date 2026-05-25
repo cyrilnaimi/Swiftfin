@@ -3,27 +3,32 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import SwiftUI
 
 enum LetterPickerOrientation: String, CaseIterable, Displayable, Storable {
 
+    case disabled
     case leading
     case trailing
 
     var displayTitle: String {
         switch self {
+        case .disabled:
+            L10n.disabled
         case .leading:
-            return L10n.left
+            L10n.left
         case .trailing:
-            return L10n.right
+            L10n.right
         }
     }
 
-    var alignment: Alignment {
+    var alignment: Alignment? {
         switch self {
+        case .disabled:
+            nil
         case .leading:
             .leading
         case .trailing:
@@ -31,8 +36,10 @@ enum LetterPickerOrientation: String, CaseIterable, Displayable, Storable {
         }
     }
 
-    var edge: Edge.Set {
+    var edge: HorizontalEdge? {
         switch self {
+        case .disabled:
+            nil
         case .leading:
             .leading
         case .trailing:

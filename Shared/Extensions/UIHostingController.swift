@@ -3,13 +3,14 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import SwiftUI
 
 extension UIHostingController {
 
+    @available(*, deprecated, message: "Use Engine.HostingController instead")
     public convenience init(rootView: Content, ignoreSafeArea: Bool) {
         self.init(rootView: rootView)
 
@@ -18,7 +19,7 @@ extension UIHostingController {
         }
     }
 
-    func disableSafeArea() {
+    private func disableSafeArea() {
         guard let viewClass = object_getClass(view) else { return }
 
         let viewSubclassName = String(cString: class_getName(viewClass)).appending("_IgnoreSafeArea")

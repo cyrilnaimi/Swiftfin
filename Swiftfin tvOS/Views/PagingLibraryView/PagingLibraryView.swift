@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import CollectionVGrid
@@ -89,7 +89,7 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
 
     // MARK: On Select
 
-    private func onSelect(_ element: Element) {
+    private func action(_ element: Element) {
         switch element {
         case let element as BaseItemDto:
             select(item: element)
@@ -126,11 +126,11 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
     ) -> CollectionVGridLayout {
         switch (posterType, viewType) {
         case (.landscape, .grid):
-            return .columns(5, insets: .init(50), itemSpacing: 50, lineSpacing: 50)
+            .columns(5, insets: .init(50), itemSpacing: 50, lineSpacing: 50)
         case (.portrait, .grid), (.square, .grid):
-            return .columns(7, insets: .init(50), itemSpacing: 50, lineSpacing: 50)
+            .columns(7, insets: .init(50), itemSpacing: 50, lineSpacing: 50)
         case (_, .list):
-            return .columns(listColumnCount, insets: .init(50), itemSpacing: 50, lineSpacing: 50)
+            .columns(listColumnCount, insets: .init(50), itemSpacing: 50, lineSpacing: 50)
         }
     }
 
@@ -180,7 +180,7 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
             item: item,
             type: .landscape
         ) {
-            onSelect(item)
+            action(item)
         } label: {
             if item.showTitle {
                 PosterButton<Element>.TitleContentView(item: item)
@@ -201,7 +201,7 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
             item: item,
             type: .portrait
         ) {
-            onSelect(item)
+            action(item)
         } label: {
             if item.showTitle {
                 PosterButton<Element>.TitleContentView(item: item)
@@ -222,18 +222,8 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
             item: item,
             posterType: posterType
         ) {
-            onSelect(item)
+            action(item)
         }
-    }
-
-    // MARK: Error View
-
-    @ViewBuilder
-    private func errorView(with error: some Error) -> some View {
-        ErrorView(error: error)
-            .onRetry {
-                viewModel.send(.refresh)
-            }
     }
 
     // MARK: Grid View
@@ -281,19 +271,28 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
         }
     }
 
-    // MARK: Inner Content View
+    // MARK: Content View
 
     @ViewBuilder
-    private var innerContent: some View {
+    private var contentView: some View {
         switch viewModel.state {
         case .content:
             #if os(tvOS)
             gridView
             #else
             if viewModel.elements.isEmpty {
-                Text(L10n.noResults)
+                ContentUnavailableView(L10n.noItems.localizedCapitalized, systemImage: "rectangle.on.rectangle.slash")
             } else {
                 gridView
+                    .onChange(of: posterType) {
+                        setCustomLayout()
+                    }
+                    .onChange(of: displayType) {
+                        setCustomLayout()
+                    }
+                    .onChange(of: listColumnCount) {
+                        setCustomLayout()
+                    }
             }
             #endif
 
@@ -305,73 +304,35 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
         }
     }
 
-    // MARK: Content View
-
-    @ViewBuilder
-    private var contentView: some View {
-
-        innerContent
-            // These exist here to alleviate type-checker issues
-                .onChange(of: posterType) {
-                    setCustomLayout()
-                }
-                .onChange(of: displayType) {
-                    setCustomLayout()
-                }
-                .onChange(of: listColumnCount) {
-                    setCustomLayout()
-                }
-
-        // Logic for LetterPicker. Enable when ready
-
-        /* if letterPickerEnabled, let filterViewModel = viewModel.filterViewModel {
-             ZStack(alignment: letterPickerOrientation.alignment) {
-                 innerContent
-                     .padding(letterPickerOrientation.edge, LetterPickerBar.size + 10)
-                     .frame(maxWidth: .infinity)
-
-                 LetterPickerBar(viewModel: filterViewModel)
-                     .padding(.top, safeArea.top)
-                     .padding(.bottom, safeArea.bottom)
-                     .padding(letterPickerOrientation.edge, 10)
-             }
-         } else {
-            innerContent
-         }
-         // These exist here to alleviate type-checker issues
-         .onChange(of: posterType) {
-             setCustomLayout()
-         }
-         .onChange(of: displayType) {
-             setCustomLayout()
-         }
-         .onChange(of: listColumnCount) {
-             setCustomLayout()
-         }*/
-    }
-
-    // tvOSLibraryHeader removed — using LibraryHeader directly in the header modifier.
-
     // MARK: Body
 
     var body: some View {
         ZStack {
+            Color.clear
+                .ignoresSafeArea()
+
             if cinematicBackground {
                 CinematicBackgroundView(viewModel: cinematicBackgroundProxy)
                     .isVisible(presentBackground)
                     .blurred()
+                    .ignoresSafeArea()
             }
 
             switch viewModel.state {
             case .content, .initial, .refreshing:
                 contentView
             case let .error(error):
-                errorView(with: error)
+                ErrorView(error: error)
             }
         }
+        .frame(maxWidth: .infinity)
         .animation(.linear(duration: 0.1), value: viewModel.state)
-        .ignoresSafeArea()
-        .background(.ultraThinMaterial)
+        .navigationTitle(viewModel.parent?.displayTitle ?? "")
+        .ignoresSafeArea(.all, edges: .vertical)
+        .letterPickerBar(filterViewModel: viewModel.filterViewModel)
+        .refreshable {
+            viewModel.send(.refresh)
+        }
         .onChange(of: focusedPoster) {
             setCinematicBackground()
         }

@@ -3,10 +3,9 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
-import Defaults
 import JellyfinAPI
 import SwiftUI
 
@@ -14,13 +13,10 @@ extension ActiveSessionsView {
 
     struct ProgressSection: View {
 
-        @Default(.accentColor)
-        private var accentColor
-
-        private let item: BaseItemDto
-        private let playState: PlayerStateInfo
-        private let transcodingInfo: TranscodingInfo?
-        private let showTranscodeReason: Bool
+        let item: BaseItemDto
+        let playState: PlayerStateInfo
+        let transcodingInfo: TranscodingInfo?
+        var showTranscodeReason: Bool = false
 
         private var playbackPercentage: Double {
             clamp(Double(playState.positionTicks ?? 0) / Double(item.runTimeTicks ?? 1), min: 0, max: 1)
@@ -29,13 +25,6 @@ extension ActiveSessionsView {
         private var transcodingPercentage: Double? {
             guard let c = transcodingInfo?.completionPercentage else { return nil }
             return clamp(c / 100.0, min: 0, max: 1)
-        }
-
-        init(item: BaseItemDto, playState: PlayerStateInfo, transcodingInfo: TranscodingInfo?, showTranscodeReason: Bool = false) {
-            self.item = item
-            self.playState = playState
-            self.transcodingInfo = transcodingInfo
-            self.showTranscodeReason = showTranscodeReason
         }
 
         @ViewBuilder
@@ -72,7 +61,7 @@ extension ActiveSessionsView {
                             }
                         }
 
-                        Text(playMethod)
+                        Text(playMethod.displayTitle)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -82,6 +71,7 @@ extension ActiveSessionsView {
                 HStack(spacing: 2) {
                     Text(playState.position ?? .zero, format: .runtime)
 
+                    // swiftlint:disable:next hard_coded_display_string
                     Text("/")
 
                     Text(item.runtime ?? .zero, format: .runtime)

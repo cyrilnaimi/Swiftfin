@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Foundation
@@ -31,20 +31,28 @@ protocol MediaPlayerProxy: ObservableObject, MediaPlayerObserver {
 }
 
 @MainActor
-protocol VideoMediaPlayerProxy: MediaPlayerProxy {
+protocol VideoMediaPlayerProxy: MediaPlayerProxy, MediaPlayerAudioTrackConfigurable, MediaPlayerSubtitleTrackConfigurable {
 
     associatedtype VideoPlayerBody: View
 
     var videoSize: PublishedBox<CGSize> { get }
+    var droppedFrames: PublishedBox<Int> { get }
+    var corruptedFrames: PublishedBox<Int> { get }
 
     // TODO: remove when container view handles aspect fill
     func setAspectFill(_ aspectFill: Bool)
-    func setAudioStream(_ stream: MediaStream)
-    func setSubtitleStream(_ stream: MediaStream)
 
     @ViewBuilder
     @MainActor
     var videoPlayerBody: Self.VideoPlayerBody { get }
+}
+
+protocol MediaPlayerAudioTrackConfigurable {
+    func setAudioStream(_ stream: MediaStream)
+}
+
+protocol MediaPlayerSubtitleTrackConfigurable {
+    func setSubtitleStream(_ stream: MediaStream)
 }
 
 protocol MediaPlayerOffsetConfigurable {

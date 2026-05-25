@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
@@ -13,6 +13,7 @@ import JellyfinAPI
 import OrderedCollections
 import SwiftUI
 
+@MainActor
 final class ItemLibraryViewModel: PagingLibraryViewModel<BaseItemDto> {
 
     // MARK: get
@@ -20,7 +21,7 @@ final class ItemLibraryViewModel: PagingLibraryViewModel<BaseItemDto> {
     override func get(page: Int) async throws -> [BaseItemDto] {
 
         let parameters = itemParameters(for: page)
-        let request = Paths.getItemsByUserID(userID: userSession.user.id, parameters: parameters)
+        let request = Paths.getItems(parameters: parameters)
         let response = try await userSession.client.send(request)
 
         // Update total count on first page load
@@ -34,7 +35,7 @@ final class ItemLibraryViewModel: PagingLibraryViewModel<BaseItemDto> {
         // 2 - if parent is type `folder`, then we are in a folder-view
         //     context so change `collectionFolder` types to `folder`
         //     for better view handling
-        let items = (response.value.items ?? [])
+        return (response.value.items ?? [])
             .filter { item in
                 if let collectionType = item.collectionType {
                     return CollectionType.supportedCases.contains(collectionType)
@@ -49,15 +50,13 @@ final class ItemLibraryViewModel: PagingLibraryViewModel<BaseItemDto> {
 
                 return item
             }
-
-        return items
     }
 
     // MARK: item parameters
 
-    private func itemParameters(for page: Int?) -> Paths.GetItemsByUserIDParameters {
+    private func itemParameters(for page: Int?) -> Paths.GetItemsParameters {
 
-        var parameters = Paths.GetItemsByUserIDParameters()
+        var parameters = Paths.GetItemsParameters()
 
         parameters.enableUserData = true
         parameters.fields = .MinimumFields
@@ -66,7 +65,7 @@ final class ItemLibraryViewModel: PagingLibraryViewModel<BaseItemDto> {
         // by parent or filters
         parameters.includeItemTypes = BaseItemKind.supportedCases
         parameters.sortOrder = [.ascending]
-        parameters.sortBy = [ItemSortBy.name.rawValue]
+        parameters.sortBy = [ItemSortBy.name]
 
         /// Recursive should only apply to parents/folders and not to baseItems
         parameters.isRecursive = (parent as? BaseItemDto)?.isRecursiveCollection ?? true
@@ -87,7 +86,7 @@ final class ItemLibraryViewModel: PagingLibraryViewModel<BaseItemDto> {
             let filters = filterViewModel.currentFilters
             parameters.filters = filters.traits
             parameters.genres = filters.genres.map(\.value)
-            parameters.sortBy = filters.sortBy.map(\.rawValue)
+            parameters.sortBy = filters.sortBy
             parameters.sortOrder = filters.sortOrder
             parameters.tags = filters.tags.map(\.value)
             parameters.years = filters.years.compactMap { Int($0.value) }
@@ -125,9 +124,9 @@ final class ItemLibraryViewModel: PagingLibraryViewModel<BaseItemDto> {
 
         var parameters = itemParameters(for: nil)
         parameters.limit = 1
-        parameters.sortBy = [ItemSortBy.random.rawValue]
+        parameters.sortBy = [ItemSortBy.random]
 
-        let request = Paths.getItemsByUserID(userID: userSession.user.id, parameters: parameters)
+        let request = Paths.getItems(parameters: parameters)
         let response = try? await userSession.client.send(request)
 
         return response?.value.items?.first

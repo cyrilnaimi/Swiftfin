@@ -3,11 +3,10 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
-import CoreStore
 import Factory
 import Foundation
 import Get
@@ -30,7 +29,7 @@ import SwiftUI
 @Stateful
 final class UserSignInViewModel: ViewModel {
 
-    typealias AccessPolicyPair = (policy: UserAccessPolicy, evaluated: any EvaluatedLocalUserAccessPolicy)
+    typealias AccessPolicyPair = (policy: LocalUserAccessPolicy, evaluated: any EvaluatedLocalUserAccessPolicy)
     typealias UserStateDataPair = (state: (state: UserState, accessToken: String), data: UserDto)
 
     struct EvaluatedPolicyMap {
@@ -51,13 +50,13 @@ final class UserSignInViewModel: ViewModel {
 
         case save(
             user: UserStateDataPair,
-            authenticationAction: (action: LocalUserAuthenticationAction, accessPolicy: UserAccessPolicy, reason: String?),
+            authenticationAction: (action: LocalUserAuthenticationAction, accessPolicy: LocalUserAccessPolicy, reason: String?),
             evaluatedPolicyMap: EvaluatedPolicyMap
         )
         case saveExisting(
             user: UserStateDataPair,
             replaceForAccessToken: Bool,
-            authenticationAction: (action: LocalUserAuthenticationAction, accessPolicy: UserAccessPolicy, reason: String?),
+            authenticationAction: (action: LocalUserAuthenticationAction, accessPolicy: LocalUserAccessPolicy, reason: String?),
             evaluatedPolicyMap: EvaluatedPolicyMap
         )
 
@@ -136,7 +135,7 @@ final class UserSignInViewModel: ViewModel {
               let username = userData.name
         else {
             logger.critical("Missing user data from network call")
-            throw JellyfinAPIError(L10n.unknownError)
+            throw ErrorMessage(L10n.unknownError)
         }
 
         if let existingUser = existingUser(id: id) {
@@ -164,7 +163,7 @@ final class UserSignInViewModel: ViewModel {
               let username = userData.name
         else {
             logger.error("Missing user data from network call")
-            throw JellyfinAPIError(L10n.unknownError)
+            throw ErrorMessage(L10n.unknownError)
         }
 
         if let existingUser = existingUser(id: id) {
@@ -181,16 +180,14 @@ final class UserSignInViewModel: ViewModel {
     }
 
     private func existingUser(id: String) -> UserState? {
-        try? SwiftfinStore
-            .dataStack
-            .fetchOne(From<UserModel>().where(\.$id == id))?
-            .state
+        StoredValues[.User.users]
+            .first { $0.id == id }
     }
 
     @Function(\Action.Cases.save)
     private func _save(
         _ user: UserStateDataPair,
-        _ authenticationAction: (action: LocalUserAuthenticationAction, accessPolicy: UserAccessPolicy, reason: String?),
+        _ authenticationAction: (action: LocalUserAuthenticationAction, accessPolicy: LocalUserAccessPolicy, reason: String?),
         _ evaluatedPolicyMap: EvaluatedPolicyMap
     ) async throws {
 
@@ -205,21 +202,26 @@ final class UserSignInViewModel: ViewModel {
 
         let userState = user.state.state
 
-        guard let serverModel = try? dataStack.fetchOne(From<ServerModel>().where(\.$id == server.id)) else {
-            logger.critical("Unable to find server to save user")
-            throw JellyfinAPIError(L10n.unknownError)
-        }
+        let savedUserState = userState
+        var users = StoredValues[.User.users]
+        users.removeAll { $0.id == savedUserState.id }
+        users.append(savedUserState)
+        StoredValues[.User.users] = users
 
-        let savedUserState = try dataStack.perform { transaction in
-            let newUser = transaction.create(Into<UserModel>())
+        var servers = StoredValues[.Server.servers]
+        if let index = servers.firstIndex(where: { $0.id == savedUserState.serverID }) {
+            let existingServer = servers[index]
+            let userIDs = existingServer.userIDs.appending(savedUserState.id)
 
-            newUser.id = userState.id
-            newUser.username = userState.username
+            servers[index] = ServerState(
+                urls: existingServer.urls,
+                currentURL: existingServer.currentURL,
+                name: existingServer.name,
+                id: existingServer.id,
+                userIDs: userIDs
+            )
 
-            let editServer = transaction.edit(serverModel)!
-            editServer.users.insert(newUser)
-
-            return newUser.state
+            StoredValues[.Server.servers] = servers
         }
 
         savedUserState.accessPolicy = accessPolicy
@@ -241,7 +243,7 @@ final class UserSignInViewModel: ViewModel {
     private func _saveExisting(
         _ user: UserStateDataPair,
         _ replaceForAccessToken: Bool,
-        _ authenticationAction: (action: LocalUserAuthenticationAction, accessPolicy: UserAccessPolicy, reason: String?),
+        _ authenticationAction: (action: LocalUserAuthenticationAction, accessPolicy: LocalUserAccessPolicy, reason: String?),
         _ evaluatedPolicyMap: EvaluatedPolicyMap
     ) async throws {
 
@@ -256,7 +258,7 @@ final class UserSignInViewModel: ViewModel {
 
         if let evaluatedPinPolicy = evaluatedPolicy as? PinEvaluatedUserAccessPolicy {
             guard user.state.state.pin == evaluatedPinPolicy.pin else {
-                throw JellyfinAPIError(L10n.incorrectPinForUser(user.state.state.username))
+                throw ErrorMessage(L10n.incorrectPinForUser(user.state.state.username))
             }
         }
 
@@ -284,7 +286,7 @@ final class UserSignInViewModel: ViewModel {
     }
 
     private func retrieveIsQuickConnectEnabled() async throws -> Bool {
-        let request = Paths.getEnabled
+        let request = Paths.getQuickConnectEnabled
         let response = try await server.client.send(request)
 
         let isEnabled = try? JSONDecoder().decode(Bool.self, from: response.value)

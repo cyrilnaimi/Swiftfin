@@ -3,9 +3,10 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
+import Engine
 import JellyfinAPI
 import SwiftUI
 
@@ -17,40 +18,53 @@ extension AddTaskTriggerView {
         private var taskTriggerInfo: TaskTriggerInfo
 
         @State
-        private var tempInterval: Int?
+        private var tempInterval: Duration?
 
         // MARK: - Init
 
         init(taskTriggerInfo: Binding<TaskTriggerInfo>) {
             self._taskTriggerInfo = taskTriggerInfo
-            _tempInterval = State(initialValue: Int(ServerTicks(taskTriggerInfo.wrappedValue.intervalTicks).minutes))
+            tempInterval = Duration.ticks(taskTriggerInfo.wrappedValue.intervalTicks ?? 0)
         }
 
         // MARK: - Body
 
         var body: some View {
-            ChevronButton(
-                L10n.every,
-                subtitle: Text(Duration.ticks(taskTriggerInfo.intervalTicks ?? 0), format: .hourMinuteAbbreviated),
-                description: L10n.taskTriggerInterval
-            ) {
-                TextField(
-                    L10n.minutes,
-                    value: $tempInterval,
-                    format: .number
-                )
-                .keyboardType(.numberPad)
-            } onSave: {
-                if tempInterval != nil && tempInterval != 0 {
-                    taskTriggerInfo.intervalTicks = ServerTicks(minutes: tempInterval).ticks
-                } else {
-                    taskTriggerInfo.intervalTicks = nil
+            StateAdapter(initialValue: false) { isPresented in
+                ChevronButton(
+                    L10n.every,
+                    content: Text(Duration.ticks(taskTriggerInfo.intervalTicks ?? 0), format: .hourMinuteAbbreviated)
+                ) {
+                    isPresented.wrappedValue = true
                 }
-            } onCancel: {
-                if let intervalTicks = taskTriggerInfo.intervalTicks {
-                    tempInterval = Int(ServerTicks(intervalTicks).minutes)
-                } else {
-                    tempInterval = nil
+                .alert(L10n.every, isPresented: isPresented) {
+                    TextField(
+                        L10n.minutes,
+                        value: $tempInterval.map(
+                            getter: { $0.map { Int($0.minutes) } },
+                            setter: { Duration.minutes($0 ?? 0) }
+                        ),
+                        format: .number
+                    )
+                    .keyboardType(.numberPad)
+
+                    Button(L10n.save) {
+                        if let tempInterval, tempInterval != .zero {
+                            taskTriggerInfo.intervalTicks = tempInterval.ticks
+                        } else {
+                            taskTriggerInfo.intervalTicks = nil
+                        }
+                    }
+
+                    Button(L10n.cancel, role: .cancel) {
+                        if let existingIntervalTicks = taskTriggerInfo.intervalTicks {
+                            tempInterval = Duration.ticks(existingIntervalTicks)
+                        } else {
+                            tempInterval = nil
+                        }
+                    }
+                } message: {
+                    Text(L10n.taskTriggerInterval)
                 }
             }
         }

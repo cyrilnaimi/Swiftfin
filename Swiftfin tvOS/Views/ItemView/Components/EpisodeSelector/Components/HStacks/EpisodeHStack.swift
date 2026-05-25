@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import CollectionHStack
@@ -165,7 +165,7 @@ extension SeriesEpisodeSelector {
         @ObservedObject
         var viewModel: SeasonItemViewModel
 
-        let error: JellyfinAPIError
+        let error: ErrorMessage
         let focusedEpisodeID: FocusState<String?>.Binding
 
         var body: some View {
@@ -173,12 +173,11 @@ extension SeriesEpisodeSelector {
                 count: 1,
                 columns: 3.5
             ) { _ in
-                SeriesEpisodeSelector.ErrorCard(error: error)
-                    .onSelect {
-                        viewModel.send(.refresh)
-                    }
-                    .focused(focusedEpisodeID, equals: "errorCard")
-                    .padding(.horizontal, 4)
+                SeriesEpisodeSelector.ErrorCard(error: error) {
+                    viewModel.send(.refresh)
+                }
+                .focused(focusedEpisodeID, equals: "errorCard")
+                .padding(.horizontal, 4)
             }
             .insets(horizontal: EdgeInsets.edgePadding)
             .itemSpacing(EdgeInsets.edgePadding / 2)

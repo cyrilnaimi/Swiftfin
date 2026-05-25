@@ -3,10 +3,9 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
-import CoreStore
 import Foundation
 import Nuke
 
@@ -42,23 +41,18 @@ extension DataCache.Swiftfin {
 
         let path = root.appendingPathComponent("Caches/org.jellyfin.swiftfin.local", isDirectory: true)
 
-        let dataCache = try? DataCache(path: path) { name in
+        return try? DataCache(path: path) { name in
 
             guard let url = name.url else { return nil }
 
             // Since multi-url servers are supported, key splashscreens with the server ID.
-            //
-            // Additional latency from Core Data fetch is acceptable.
             if url.path.contains("Splashscreen") {
 
                 // Account for hosting at a path
                 guard let prefixURL = url.absoluteString.trimmingSuffix("/Branding/Splashscreen?").url else { return nil }
 
-                // We can assume that the request is from the current server
-                let urlFilter: Where<ServerModel> = Where(\.$currentURL == prefixURL)
-                guard let server = try? SwiftfinStore.dataStack.fetchOne(
-                    From<ServerModel>()
-                        .where(urlFilter)
+                guard let server = StoredValues[.Server.servers].first(
+                    where: { $0.currentURL == prefixURL || $0.urls.contains(prefixURL) }
                 ) else { return nil }
 
                 return "\(server.id)-splashscreen".sha1
@@ -66,7 +60,5 @@ extension DataCache.Swiftfin {
                 return ImagePipeline.cacheKey(for: url)
             }
         }
-
-        return dataCache
     }()
 }

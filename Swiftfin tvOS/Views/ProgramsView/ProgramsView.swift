@@ -3,9 +3,10 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
+import Factory
 import JellyfinAPI
 import SwiftUI
 
@@ -18,6 +19,9 @@ struct ProgramsView: View {
     @Router
     private var router
 
+    @Injected(\.currentUserSession)
+    private var userSession
+
     @StateObject
     private var programsViewModel = ProgramsViewModel()
 
@@ -25,6 +29,7 @@ struct ProgramsView: View {
     private var contentView: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 20) {
+
                 if programsViewModel.recommended.isNotEmpty {
                     programsSection(title: L10n.onNow, keyPath: \.recommended)
                 }
@@ -80,21 +85,21 @@ struct ProgramsView: View {
             switch programsViewModel.state {
             case .content:
                 if programsViewModel.hasNoResults {
-                    Text(L10n.noResults)
+                    ContentUnavailableView(L10n.noPrograms.localizedCapitalized, systemImage: "tv")
                 } else {
                     contentView
                 }
             case let .error(error):
                 ErrorView(error: error)
-                    .onRetry {
-                        programsViewModel.send(.refresh)
-                    }
             case .initial, .refreshing:
                 ProgressView()
             }
         }
         .animation(.linear(duration: 0.1), value: programsViewModel.state)
         .ignoresSafeArea(edges: [.bottom, .horizontal])
+        .refreshable {
+            programsViewModel.send(.refresh)
+        }
         .onFirstAppear {
             if programsViewModel.state == .initial {
                 programsViewModel.send(.refresh)

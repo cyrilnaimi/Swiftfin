@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import JellyfinAPI
@@ -22,7 +22,7 @@ protocol LibraryParent: Displayable, Hashable, Identifiable<String?> {
     var supportedItemTypes: [BaseItemKind] { get }
 
     /// Modifies the parameters for the items request per this library parent.
-    func setParentParameters(_ parameters: Paths.GetItemsByUserIDParameters) -> Paths.GetItemsByUserIDParameters
+    func setParentParameters(_ parameters: Paths.GetItemsParameters) -> Paths.GetItemsParameters
 }
 
 extension LibraryParent {
@@ -37,7 +37,7 @@ extension LibraryParent {
         }
     }
 
-    func setParentParameters(_ parameters: Paths.GetItemsByUserIDParameters) -> Paths.GetItemsByUserIDParameters {
+    func setParentParameters(_ parameters: Paths.GetItemsParameters) -> Paths.GetItemsParameters {
 
         guard let id else { return parameters }
 

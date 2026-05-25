@@ -3,11 +3,9 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
-import Combine
-import CoreStore
 import Factory
 import Foundation
 import Get
@@ -50,28 +48,6 @@ final class ConnectToServerViewModel: ViewModel {
     @Published
     var localServers: OrderedSet<ServerState> = []
 
-    private let discovery = ServerDiscovery()
-
-    deinit {
-        discovery.close()
-    }
-
-    override init() {
-        super.init()
-
-        // TODO: refactor, causing retain cycle
-        Task { [weak self] in
-            guard let self else { return }
-
-            for await response in discovery.discoveredServers.values {
-                await MainActor.run {
-                    let _ = self.localServers.append(response.asServerState)
-                }
-            }
-        }
-        .store(in: &cancellables)
-    }
-
     @Function(\Action.Cases.connect)
     private func connectToServer(_ url: String) async throws {
 
@@ -80,7 +56,7 @@ final class ConnectToServerViewModel: ViewModel {
             .trimmingCharacters(in: ["/"])
             .prepending("http://", if: !url.contains("://"))
 
-        guard let url = URL(string: formattedURL) else { throw JellyfinAPIError("Invalid URL") }
+        guard let url = URL(string: formattedURL) else { throw ErrorMessage("Invalid URL") }
 
         let client = JellyfinClient(
             configuration: .swiftfinConfiguration(url: url),
@@ -93,7 +69,7 @@ final class ConnectToServerViewModel: ViewModel {
               let id = response.value.id
         else {
             logger.critical("Missing server data from network call")
-            throw JellyfinAPIError(L10n.unknownError)
+            throw ErrorMessage(L10n.unknownError)
         }
 
         let connectionURL = processConnectionURL(
@@ -106,7 +82,7 @@ final class ConnectToServerViewModel: ViewModel {
             currentURL: connectionURL,
             name: name,
             id: id,
-            usersIDs: []
+            userIDs: []
         )
 
         if isDuplicate(server: newServerState) {
@@ -136,50 +112,62 @@ final class ConnectToServerViewModel: ViewModel {
     }
 
     private func isDuplicate(server: ServerState) -> Bool {
-        let existingServer = try? SwiftfinStore
-            .dataStack
-            .fetchOne(From<ServerModel>().where(\.$id == server.id))
-        return existingServer != nil
+        StoredValues[.Server.servers]
+            .contains { $0.id == server.id }
     }
 
     private func save(server: ServerState) async throws {
 
         let publicInfo = try await server.getPublicSystemInfo()
 
-        try dataStack.perform { transaction in
-            let newServer = transaction.create(Into<ServerModel>())
+        let newServers = StoredValues[.Server.servers]
+            .appending(server)
 
-            newServer.urls = server.urls
-            newServer.currentURL = server.currentURL
-            newServer.name = server.name
-            newServer.id = server.id
-            newServer.users = []
-        }
-
+        StoredValues[.Server.servers] = newServers
         StoredValues[.Server.publicInfo(id: server.id)] = publicInfo
     }
 
     // server has same id, but (possible) new URL
     @Function(\Action.Cases.addNewURL)
     private func _addNewURL(_ server: ServerState) throws {
-        let newState = try dataStack.perform { transaction in
-            let existingServer = try self.dataStack.fetchOne(From<ServerModel>().where(\.$id == server.id))
-            guard let editServer = transaction.edit(existingServer) else {
-                logger.critical("Could not find server to add new url")
-                throw JellyfinAPIError("An internal error has occurred")
-            }
+        var servers = StoredValues[.Server.servers]
 
-            editServer.urls.insert(server.currentURL)
-            editServer.currentURL = server.currentURL
-
-            return editServer.state
+        guard let index = servers.firstIndex(where: { $0.id == server.id }) else {
+            logger.critical("Could not find server to add new url")
+            throw ErrorMessage("An internal error has occurred")
         }
+
+        let currentServer = servers[index]
+        let newState = ServerState(
+            urls: currentServer.urls.union([server.currentURL]),
+            currentURL: server.currentURL,
+            name: currentServer.name,
+            id: currentServer.id,
+            userIDs: currentServer.userIDs
+        )
+
+        servers[index] = newState
+        StoredValues[.Server.servers] = servers
 
         Notifications[.didChangeCurrentServerURL].post(newState)
     }
 
     @Function(\Action.Cases.searchForServers)
-    private func _searchForServers() {
-        discovery.broadcast()
+    private func _searchForServers() async {
+        do {
+            for try await server in JellyfinClient.discover() {
+                localServers.append(
+                    ServerState(
+                        urls: [server.url],
+                        currentURL: server.url,
+                        name: server.name,
+                        id: server.id,
+                        userIDs: []
+                    )
+                )
+            }
+        } catch {
+            logger.error("Local server discovery failed: \(error.localizedDescription)")
+        }
     }
 }

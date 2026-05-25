@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import SwiftUI
@@ -13,7 +13,7 @@ struct LocalUserAccessPolicyView: View {
     @Binding
     private var pinHint: String
     @Binding
-    private var accessPolicy: UserAccessPolicy
+    private var accessPolicy: LocalUserAccessPolicy
 
     @Router
     private var router
@@ -23,11 +23,11 @@ struct LocalUserAccessPolicyView: View {
     @State
     private var updatePinHint: String
     @State
-    private var updateSignInPolicy: UserAccessPolicy
+    private var updateSignInPolicy: LocalUserAccessPolicy
 
     init(
         pinHint: Binding<String>,
-        accessPolicy: Binding<UserAccessPolicy>
+        accessPolicy: Binding<LocalUserAccessPolicy>
     ) {
         self._pinHint = pinHint
         self._accessPolicy = accessPolicy
@@ -38,7 +38,7 @@ struct LocalUserAccessPolicyView: View {
     var body: some View {
         List {
             Section {
-                CaseIterablePicker(L10n.security, selection: $updateSignInPolicy)
+                Picker(L10n.security, selection: $updateSignInPolicy)
             } footer: {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(
@@ -49,21 +49,21 @@ struct LocalUserAccessPolicyView: View {
                     BulletedList {
 
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(UserAccessPolicy.requireDeviceAuthentication.displayTitle)
+                            Text(LocalUserAccessPolicy.requireDeviceAuthentication.displayTitle)
                                 .fontWeight(.semibold)
 
                             Text(L10n.requireDeviceAuthDescription)
                         }
 
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(UserAccessPolicy.requirePin.displayTitle)
+                            Text(LocalUserAccessPolicy.requirePin.displayTitle)
                                 .fontWeight(.semibold)
 
                             Text(L10n.requirePinDescription)
                         }
 
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(UserAccessPolicy.none.displayTitle)
+                            Text(LocalUserAccessPolicy.none.displayTitle)
                                 .fontWeight(.semibold)
 
                             Text(L10n.saveUserWithoutAuthDescription)

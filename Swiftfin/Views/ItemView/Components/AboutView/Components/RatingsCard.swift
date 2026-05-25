@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import JellyfinAPI
@@ -33,6 +33,7 @@ extension ItemView.AboutView {
                             }
                             .font(.largeTitle)
 
+                            // swiftlint:disable:next hard_coded_display_string
                             Text("\(criticRating, specifier: "%.0f")")
                         }
                     }
@@ -44,6 +45,7 @@ extension ItemView.AboutView {
                                 .foregroundStyle(.yellow)
                                 .font(.largeTitle)
 
+                            // swiftlint:disable:next hard_coded_display_string
                             Text("\(communityRating, specifier: "%.1f")")
                         }
                     }

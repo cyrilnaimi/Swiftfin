@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -21,6 +21,8 @@ extension MediaPlayerItem {
     static func build(
         for initialItem: BaseItemDto,
         mediaSource _initialMediaSource: MediaSourceInfo? = nil,
+        audioStreamIndex: Int? = nil,
+        subtitleStreamIndex: Int? = nil,
         videoPlayerType: VideoPlayerType = Defaults[.VideoPlayer.videoPlayerType],
         requestedBitrate: PlaybackBitrate = Defaults[.VideoPlayer.Playback.appMaximumBitrate],
         compatibilityMode: PlaybackCompatibility = Defaults[.VideoPlayer.Playback.compatibilityMode],
@@ -31,12 +33,12 @@ extension MediaPlayerItem {
 
         guard let itemID = initialItem.id else {
             logger.critical("No item ID!")
-            throw JellyfinAPIError(L10n.unknownError)
+            throw ErrorMessage(L10n.unknownError)
         }
 
         guard let userSession = Container.shared.currentUserSession() else {
             logger.critical("No user session!")
-            throw JellyfinAPIError(L10n.unknownError)
+            throw ErrorMessage(L10n.unknownError)
         }
 
         var item = try await initialItem.getFullItem(userSession: userSession)
@@ -58,7 +60,7 @@ extension MediaPlayerItem {
             return nil
         }() else {
             logger.error("No media sources for item \(itemID)!")
-            throw JellyfinAPIError(L10n.unknownError)
+            throw ErrorMessage(L10n.unknownError)
         }
 
         let maxBitrate = try await requestedBitrate.getMaxBitrate()
@@ -75,6 +77,8 @@ extension MediaPlayerItem {
         playbackInfo.liveStreamID = initialMediaSource.liveStreamID
         playbackInfo.maxStreamingBitrate = maxBitrate
         playbackInfo.userID = userSession.user.id
+        playbackInfo.audioStreamIndex = audioStreamIndex
+        playbackInfo.subtitleStreamIndex = subtitleStreamIndex
 
         if !item.isLiveStream {
             playbackInfo.mediaSourceID = initialMediaSource.id
@@ -104,17 +108,23 @@ extension MediaPlayerItem {
                 }
             }
 
+            if let initialID = initialMediaSource.id,
+               let matchingMediaSource = mediaSources.first(where: { $0.id == initialID })
+            {
+                return matchingMediaSource
+            }
+
             logger.warning("Unable to find matching media source, defaulting to first media source")
 
             return mediaSources.first
         }()
 
         guard let mediaSource else {
-            throw JellyfinAPIError("Unable to find media source for item")
+            throw ErrorMessage("Unable to find media source for item")
         }
 
         guard let playSessionID = response.value.playSessionID else {
-            throw JellyfinAPIError("No associated play session ID")
+            throw ErrorMessage("No associated play session ID")
         }
 
         let playbackURL = try Self.streamURL(
@@ -162,6 +172,8 @@ extension MediaPlayerItem {
             playSessionID: playSessionID,
             url: playbackURL,
             requestedBitrate: requestedBitrate,
+            initialAudioStreamIndex: audioStreamIndex,
+            initialSubtitleStreamIndex: subtitleStreamIndex,
             previewImageProvider: previewImageProvider,
             thumbnailProvider: item.getNowPlayingImage
         )
@@ -178,15 +190,17 @@ extension MediaPlayerItem {
     ) throws -> URL {
 
         guard let itemID = item.id else {
-            throw JellyfinAPIError("No item ID while building online media player item!")
+            throw ErrorMessage("No item ID while building online media player item!")
         }
 
-        if let transcodingURL = mediaSource.transcodingURL {
+        if let transcodingPath = mediaSource.transcodingURL {
             logger.trace("Using transcoding URL for item \(itemID)")
 
-            guard let fullTranscodeURL = userSession.client.fullURL(with: transcodingURL)
-            else { throw JellyfinAPIError("Unable to make transcode URL") }
-            return fullTranscodeURL
+            guard let url = userSession.client.url(path: transcodingPath) else {
+                throw ErrorMessage("Unable to make transcoding URL")
+            }
+
+            return url
         }
 
         if item.mediaType == .video, !item.isLiveStream {
@@ -205,8 +219,8 @@ extension MediaPlayerItem {
                 parameters: videoStreamParameters
             )
 
-            guard let videoStreamURL = userSession.client.fullURL(with: videoStreamRequest)
-            else { throw JellyfinAPIError("Unable to make video stream URL") }
+            guard let videoStreamURL = userSession.client.url(with: videoStreamRequest)
+            else { throw ErrorMessage("Unable to make video stream URL") }
 
             return videoStreamURL
         }
@@ -215,7 +229,7 @@ extension MediaPlayerItem {
 
         guard let path = mediaSource.path, let streamURL = URL(
             string: path
-        ) else { throw JellyfinAPIError("Unable to make stream URL") }
+        ) else { throw ErrorMessage("Unable to make stream URL") }
 
         return streamURL
     }

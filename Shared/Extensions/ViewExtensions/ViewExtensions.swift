@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
@@ -14,6 +14,11 @@ import SwiftUI
 // TODO: organize
 
 extension View {
+
+    @inlinable
+    func enabled(_ enabled: Bool) -> some View {
+        disabled(!enabled)
+    }
 
     @inlinable
     func eraseToAnyView() -> AnyView {
@@ -35,7 +40,7 @@ extension View {
     ///              Instead, use a native `if` statement.
     @ViewBuilder
     @inlinable
-    func `if`<Content: View>(_ condition: Bool, @ViewBuilder transform: (Self) -> Content) -> some View {
+    func `if`(_ condition: Bool, @ViewBuilder transform: (Self) -> some View) -> some View {
         if condition {
             transform(self)
         } else {
@@ -63,9 +68,9 @@ extension View {
     ///              Instead, use a native `if let` statement.
     @ViewBuilder
     @inlinable
-    func ifLet<Value, Content: View>(
+    func ifLet<Value>(
         _ value: Value?,
-        @ViewBuilder transform: (Self, Value) -> Content
+        @ViewBuilder transform: (Self, Value) -> some View
     ) -> some View {
         if let value {
             transform(self, value)
@@ -139,16 +144,16 @@ extension View {
     func posterCornerRadius(
         _ type: PosterDisplayType
     ) -> some View {
-        #if !os(tvOS)
+//        #if !os(tvOS)
         switch type {
         case .landscape:
             cornerRadius(ratio: 1 / 30, of: \.width)
         case .portrait, .square:
             cornerRadius(ratio: 0.0375, of: \.width)
         }
-        #else
-        self
-        #endif
+//        #else
+//        self
+//        #endif
     }
 
     func posterBorder() -> some View {
@@ -170,11 +175,11 @@ extension View {
         modifier(ScrollViewOffsetModifier(scrollViewOffset: scrollViewOffset))
     }
 
-    func backgroundParallaxHeader<Header: View>(
+    func backgroundParallaxHeader(
         _ scrollViewOffset: Binding<CGFloat>,
         height: CGFloat,
         multiplier: CGFloat = 1,
-        @ViewBuilder header: @escaping () -> Header
+        @ViewBuilder header: @escaping () -> some View
     ) -> some View {
         modifier(BackgroundParallaxHeaderModifier(scrollViewOffset, height: height, multiplier: multiplier, header: header))
     }
@@ -307,6 +312,10 @@ extension View {
         environment(\.isEditing, isEditing)
     }
 
+    func isHighlighted(_ isHighlighted: Bool) -> some View {
+        environment(\.isHighlighted, isHighlighted)
+    }
+
     func isSelected(_ isSelected: Bool) -> some View {
         environment(\.isSelected, isSelected)
     }
@@ -387,7 +396,7 @@ extension View {
         }
     }
 
-    func assign<P>(_ publisher: P, to binding: Binding<P.Output>) -> some View where P: Publisher, P.Failure == Never {
+    func assign<P: Publisher>(_ publisher: P, to binding: Binding<P.Output>) -> some View where P.Failure == Never {
         onReceive(publisher) { output in
             binding.wrappedValue = output
         }
@@ -426,8 +435,14 @@ extension View {
         onNotification(.sceneWillEnterForeground, perform: action)
     }
 
-    func scrollIfLargerThanContainer(padding: CGFloat = 0) -> some View {
-        modifier(ScrollIfLargerThanContainerModifier(padding: padding))
+    func scrollIfLargerThanContainer(axes: Axis.Set = .vertical, padding: CGFloat = 0, alignment: Alignment = .center) -> some View {
+        modifier(ScrollIfLargerThanContainerModifier(axes: axes, padding: padding, alignment: alignment))
+    }
+
+    func letterPickerBar(filterViewModel: FilterViewModel?) -> some View {
+        modifier(
+            LetterPickerBarModifier(viewModel: filterViewModel)
+        )
     }
 
     func maskLinearGradient(
@@ -448,14 +463,14 @@ extension View {
     // Note: NOT gated by `#if DEBUG` because call sites (e.g. `SplitTimestamp.swift`)
     // are unguarded, which breaks Release builds. Keep these usable in all configs.
 
-    func debugBackground<S: ShapeStyle>(_ fill: S = .red.opacity(0.5)) -> some View {
+    func debugBackground(_ fill: some ShapeStyle = .red.opacity(0.5)) -> some View {
         background {
             Rectangle()
                 .fill(fill)
         }
     }
 
-    func debugOverlay<S: ShapeStyle>(_ fill: S = .red.opacity(0.5)) -> some View {
+    func debugOverlay(_ fill: some ShapeStyle = .red.opacity(0.5)) -> some View {
         overlay {
             Rectangle()
                 .fill(fill)
@@ -463,7 +478,7 @@ extension View {
         }
     }
 
-    func debugVLine<S: ShapeStyle>(_ fill: S) -> some View {
+    func debugVLine(_ fill: some ShapeStyle) -> some View {
         overlay {
             Rectangle()
                 .fill(fill)
@@ -471,7 +486,7 @@ extension View {
         }
     }
 
-    func debugHLine<S: ShapeStyle>(_ fill: S) -> some View {
+    func debugHLine(_ fill: some ShapeStyle) -> some View {
         overlay {
             Rectangle()
                 .fill(fill)
@@ -479,7 +494,7 @@ extension View {
         }
     }
 
-    func debugCross<S: ShapeStyle>(_ fill: S = .red) -> some View {
+    func debugCross(_ fill: some ShapeStyle = .red) -> some View {
         debugVLine(fill)
             .debugHLine(fill)
     }

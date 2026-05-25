@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -33,20 +33,8 @@ extension DevicesView {
         // MARK: - Properties
 
         let device: DeviceInfoDto
-        let onSelect: () -> Void
-        let onDelete: (() -> Void)?
-
-        // MARK: - Initializer
-
-        init(
-            device: DeviceInfoDto,
-            onSelect: @escaping () -> Void,
-            onDelete: (() -> Void)? = nil
-        ) {
-            self.device = device
-            self.onSelect = onSelect
-            self.onDelete = onDelete
-        }
+        let action: () -> Void
+        var onDelete: (() -> Void)?
 
         // MARK: - Label Styling
 
@@ -121,11 +109,12 @@ extension DevicesView {
                 deviceImage
             } content: {
                 rowContent
+            } action: {
+                action()
             }
-            .onSelect(perform: onSelect)
             .isSeparatorVisible(false)
             .swipeActions {
-                if let onDelete = onDelete {
+                if let onDelete {
                     Button(
                         L10n.delete,
                         systemImage: "trash",

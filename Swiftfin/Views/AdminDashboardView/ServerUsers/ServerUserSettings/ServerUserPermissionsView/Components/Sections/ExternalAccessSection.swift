@@ -3,9 +3,10 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
+import Engine
 import JellyfinAPI
 import SwiftUI
 
@@ -26,7 +27,7 @@ extension ServerUserPermissionsView {
                     isOn: $policy.enableRemoteAccess.coalesce(false)
                 )
 
-                CaseIterablePicker(
+                Picker(
                     L10n.maximumRemoteBitrate,
                     selection: $policy.remoteClientBitrateLimit.map(
                         getter: { MaxBitratePolicy(rawValue: $0) ?? .custom },
@@ -35,12 +36,18 @@ extension ServerUserPermissionsView {
                 )
 
                 if policy.remoteClientBitrateLimit != MaxBitratePolicy.unlimited.rawValue {
-                    ChevronButton(
-                        L10n.customBitrate,
-                        subtitle: Text(policy.remoteClientBitrateLimit ?? 0, format: .bitRate),
-                        description: L10n.enterCustomBitrate
-                    ) {
-                        MaxBitrateInput()
+                    StateAdapter(initialValue: false) { isPresented in
+                        ChevronButton(
+                            L10n.customBitrate,
+                            content: Text(policy.remoteClientBitrateLimit ?? 0, format: .bitRate)
+                        ) {
+                            isPresented.wrappedValue = true
+                        }
+                        .alert(L10n.customBitrate, isPresented: isPresented) {
+                            MaxBitrateInput()
+                        } message: {
+                            Text(L10n.enterCustomBitrate)
+                        }
                     }
                 }
             }

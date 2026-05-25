@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import JellyfinAPI
@@ -36,10 +36,8 @@ extension ItemView {
             Menu(L10n.version, systemImage: "list.dash") {
                 Picker(L10n.version, selection: selectedMediaSourceBinding) {
                     ForEach(mediaSources, id: \.hashValue) { mediaSource in
-                        Button {
-                            Text(mediaSource.displayTitle)
-                        }
-                        .tag(mediaSource as MediaSourceInfo?)
+                        Text(mediaSource.displayTitle)
+                            .tag(mediaSource as MediaSourceInfo?)
                     }
                 }
             }

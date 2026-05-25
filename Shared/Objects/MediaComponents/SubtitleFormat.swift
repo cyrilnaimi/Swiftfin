@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import UniformTypeIdentifiers
@@ -45,47 +45,47 @@ enum SubtitleFormat: String, CaseIterable, Codable, Displayable, Storable {
     var displayTitle: String {
         switch self {
         case .ass:
-            return "ASS"
+            L10n.ass
         case .cc_dec:
-            return "EIA-608"
+            L10n.eia608
         case .dvdsub:
-            return "DVD Subtitle"
+            L10n.dvdSubtitle
         case .dvbsub:
-            return "DVB Subtitle"
+            L10n.dvbSubtitle
         case .jacosub:
-            return "Jacosub"
+            L10n.jacosub
         case .libzvbi_teletextdec:
-            return "DVB Teletext"
+            L10n.dvbTeletext
         case .mov_text:
-            return "MPEG-4 Timed Text"
+            L10n.mpeg4TimedText
         case .mpl2:
-            return "MPL2"
+            L10n.mpl2
         case .pjs:
-            return "Phoenix Subtitle"
+            L10n.phoenixSubtitle
         case .pgssub:
-            return "PGS Subtitle"
+            L10n.pgsSubtitle
         case .realtext:
-            return "RealText"
+            L10n.realText
         case .sami:
-            return "SMI"
+            L10n.smi
         case .ssa:
-            return "SSA"
+            L10n.ssa
         case .subrip:
-            return "SRT"
+            L10n.srt
         case .subviewer:
-            return "SubViewer"
+            L10n.subViewer
         case .subviewer1:
-            return "SubViewer1"
+            L10n.subViewer1
         case .text:
-            return "TXT"
+            L10n.txt
         case .ttml:
-            return "TTML"
+            L10n.ttml
         case .vplayer:
-            return "VPlayer"
+            L10n.vPlayer
         case .vtt:
-            return "WebVTT"
+            L10n.webVTT
         case .xsub:
-            return "XSUB"
+            L10n.xsub
         }
     }
 
@@ -93,47 +93,47 @@ enum SubtitleFormat: String, CaseIterable, Codable, Displayable, Storable {
     var fileExtension: String {
         switch self {
         case .ass:
-            return "ass"
+            "ass"
         case .cc_dec:
-            return "608"
+            "608"
         case .dvdsub:
-            return "sub"
+            "sub"
         case .dvbsub:
-            return "dvbsub"
+            "dvbsub"
         case .jacosub:
-            return "jss"
+            "jss"
         case .libzvbi_teletextdec:
-            return "txt"
+            "txt"
         case .mov_text:
-            return "tx3g"
+            "tx3g"
         case .mpl2:
-            return "mpl"
+            "mpl"
         case .pjs:
-            return "pjs"
+            "pjs"
         case .pgssub:
-            return "sup"
+            "sup"
         case .realtext:
-            return "rt"
+            "rt"
         case .sami:
-            return "smi"
+            "smi"
         case .ssa:
-            return "ssa"
+            "ssa"
         case .subrip:
-            return "srt"
+            "srt"
         case .subviewer:
-            return "sub"
+            "sub"
         case .subviewer1:
-            return "sub"
+            "sub"
         case .text:
-            return "txt"
+            "txt"
         case .ttml:
-            return "ttml"
+            "ttml"
         case .vplayer:
-            return "txt"
+            "txt"
         case .vtt:
-            return "vtt"
+            "vtt"
         case .xsub:
-            return "xsub"
+            "xsub"
         }
     }
 
@@ -153,9 +153,9 @@ enum SubtitleFormat: String, CaseIterable, Codable, Displayable, Storable {
         case .ass, .cc_dec, .jacosub, .libzvbi_teletextdec, .mov_text,
              .mpl2, .pjs, .realtext, .sami, .ssa, .subrip, .subviewer,
              .subviewer1, .text, .ttml, .vplayer, .vtt:
-            return true
+            true
         case .dvdsub, .dvbsub, .pgssub, .xsub:
-            return false
+            false
         }
     }
 }

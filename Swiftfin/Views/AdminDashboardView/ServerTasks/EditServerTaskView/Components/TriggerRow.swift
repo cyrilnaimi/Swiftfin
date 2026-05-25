@@ -3,11 +3,10 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import JellyfinAPI
-
 import SwiftUI
 
 extension EditServerTaskView {
@@ -58,8 +57,9 @@ extension EditServerTaskView {
                 if let timeOfDayTicks = taskTriggerInfo.timeOfDayTicks {
                     return L10n.itemAtItem(
                         triggerType.displayTitle,
-                        ServerTicks(timeOfDayTicks)
-                            .date.formatted(date: .omitted, time: .shortened)
+                        Duration.ticks(timeOfDayTicks)
+                            .timeOfDayDate
+                            .formatted(date: .omitted, time: .shortened)
                     )
                 }
             case .weeklyTrigger:
@@ -68,14 +68,16 @@ extension EditServerTaskView {
                 {
                     return L10n.itemAtItem(
                         dayOfWeek.rawValue.capitalized,
-                        ServerTicks(timeOfDayTicks)
-                            .date.formatted(date: .omitted, time: .shortened)
+                        Duration.ticks(timeOfDayTicks)
+                            .timeOfDayDate
+                            .formatted(date: .omitted, time: .shortened)
                     )
                 }
             case .intervalTrigger:
                 if let intervalTicks = taskTriggerInfo.intervalTicks {
                     return L10n.everyInterval(
-                        Duration.ticks(intervalTicks).formatted(.hourMinuteAbbreviated)
+                        Duration.ticks(intervalTicks)
+                            .formatted(.hourMinuteAbbreviated)
                     )
                 }
             case .startupTrigger:

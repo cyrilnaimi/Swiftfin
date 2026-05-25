@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import SwiftUI
@@ -12,22 +12,13 @@ extension SeriesEpisodeSelector {
 
     struct ErrorCard: View {
 
-        let error: JellyfinAPIError
-        private var onSelect: () -> Void
-
-        init(error: JellyfinAPIError) {
-            self.error = error
-            self.onSelect = {}
-        }
-
-        func onSelect(perform action: @escaping () -> Void) -> Self {
-            copy(modifying: \.onSelect, with: action)
-        }
+        let error: ErrorMessage
+        let action: () -> Void
 
         var body: some View {
             VStack(alignment: .leading) {
                 Button {
-                    onSelect()
+                    action()
                 } label: {
                     Color.secondarySystemFill
                         .opacity(0.75)
@@ -46,6 +37,11 @@ extension SeriesEpisodeSelector {
                     content: error.localizedDescription
                 )
             }
+        }
+
+        init(error: ErrorMessage, action: @escaping () -> Void = {}) {
+            self.error = error
+            self.action = action
         }
     }
 }

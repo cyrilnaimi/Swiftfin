@@ -3,61 +3,44 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
-import Defaults
 import Foundation
 import JellyfinAPI
 import OrderedCollections
 import SwiftUI
 
-final class FilterViewModel: ViewModel, Stateful {
+@MainActor
+@Stateful
+final class FilterViewModel: ViewModel {
 
-    // MARK: - Action
-
-    enum Action: Equatable {
+    @CasePathable
+    enum Action {
         case cancel
         case getQueryFilters
-        case reset(ItemFilterType? = nil)
-        case update(ItemFilterType, [AnyItemFilter])
+        case reset(filterType: ItemFilterType?)
+
+        var transition: Transition {
+            switch self {
+            case .cancel, .reset: .none
+            case .getQueryFilters:
+                .background(.retrievingQueryFilters)
+            }
+        }
     }
 
-    // MARK: - Background State
-
-    enum BackgroundState: Hashable {
-        case gettingQueryFilters
-        case failedToGetQueryFilters
+    enum BackgroundState {
+        case retrievingQueryFilters
     }
 
-    // MARK: - State
-
-    enum State: Hashable {
-        case content
-    }
-
-    /// Tracks the current filters
-    @Published
-    private(set) var currentFilters: ItemFilterCollection
-
-    /// All filters available
     @Published
     private(set) var allFilters: ItemFilterCollection = .all
-
-    /// ViewModel Background State(s)
     @Published
-    var backgroundStates: Set<BackgroundState> = []
-
-    /// ViewModel State
-    @Published
-    var state: State = .content
+    var currentFilters: ItemFilterCollection
 
     private let parent: (any LibraryParent)?
-
-    private var queryFiltersTask: AnyCancellable?
-
-    // MARK: - Initialize from Library Parent
 
     init(
         parent: (any LibraryParent)? = nil,
@@ -67,97 +50,24 @@ final class FilterViewModel: ViewModel, Stateful {
         self.currentFilters = currentFilters
 
         super.init()
-
-        if let parent {
-            self.allFilters.itemTypes = parent.supportedItemTypes
-        }
     }
 
     func isFilterSelected(type: ItemFilterType) -> Bool {
-        currentFilters[keyPath: type.collectionAnyKeyPath] != ItemFilterCollection.default[keyPath: type.collectionAnyKeyPath]
+        type.group
+            .map(\.keyPath)
+            .contains { keyPath in
+                currentFilters[keyPath: keyPath] != ItemFilterCollection.default[keyPath: keyPath]
+            }
     }
 
-    // MARK: - Respond to Action
+    @Function(\Action.Cases.reset)
+    private func resetCurrentFilters(_ type: ItemFilterType?) {
 
-    func respond(to action: Action) -> State {
-        switch action {
-        case .cancel:
-            queryFiltersTask?.cancel()
-            backgroundStates.removeAll()
-
-        case .getQueryFilters:
-            queryFiltersTask?.cancel()
-            queryFiltersTask = Task {
-                do {
-                    await MainActor.run {
-                        _ = self.backgroundStates.insert(.gettingQueryFilters)
-                    }
-
-                    try await setQueryFilters()
-                } catch {
-                    await MainActor.run {
-                        _ = self.backgroundStates.insert(.failedToGetQueryFilters)
-                    }
-                }
-
-                await MainActor.run {
-                    _ = self.backgroundStates.remove(.gettingQueryFilters)
-                }
-            }
-            .asAnyCancellable()
-
-        case let .reset(type):
-            if let type {
-                resetCurrentFilters(for: type)
-            } else {
-                currentFilters = .default
-            }
-
-            // Clear stored filters when rememberFiltering is enabled
-            if let id = parent?.id, Defaults[.Customization.Library.rememberFiltering] {
-                var storedFilters = StoredValues[.User.libraryFilters(parentID: id)]
-
-                if let type {
-                    // Reset specific filter type in stored filters
-                    switch type {
-                    case .genres:
-                        storedFilters.genres = ItemFilterCollection.default.genres
-                    case .letter:
-                        storedFilters.letter = ItemFilterCollection.default.letter
-                    case .sortBy:
-                        storedFilters.sortBy = ItemFilterCollection.default.sortBy
-                    case .sortOrder:
-                        storedFilters.sortOrder = ItemFilterCollection.default.sortOrder
-                    case .tags:
-                        storedFilters.tags = ItemFilterCollection.default.tags
-                    case .traits:
-                        storedFilters.traits = ItemFilterCollection.default.traits
-                    case .years:
-                        storedFilters.years = ItemFilterCollection.default.years
-                    }
-                } else {
-                    // Reset all filtering filters (not sorting)
-                    storedFilters.genres = ItemFilterCollection.default.genres
-                    storedFilters.letter = ItemFilterCollection.default.letter
-                    storedFilters.tags = ItemFilterCollection.default.tags
-                    storedFilters.traits = ItemFilterCollection.default.traits
-                    storedFilters.years = ItemFilterCollection.default.years
-                }
-
-                StoredValues[.User.libraryFilters(parentID: id)] = storedFilters
-            }
-
-        case let .update(type, filters):
-            updateCurrentFilters(for: type, with: filters)
+        guard let type else {
+            currentFilters = .default
+            return
         }
 
-        return state
-    }
-
-    // MARK: - Reset Current Filters
-
-    /// Reset the filter for a specific type to its default value
-    private func resetCurrentFilters(for type: ItemFilterType) {
         switch type {
         case .genres:
             currentFilters.genres = ItemFilterCollection.default.genres
@@ -165,7 +75,6 @@ final class FilterViewModel: ViewModel, Stateful {
             currentFilters.letter = ItemFilterCollection.default.letter
         case .sortBy:
             currentFilters.sortBy = ItemFilterCollection.default.sortBy
-        case .sortOrder:
             currentFilters.sortOrder = ItemFilterCollection.default.sortOrder
         case .tags:
             currentFilters.tags = ItemFilterCollection.default.tags
@@ -176,64 +85,8 @@ final class FilterViewModel: ViewModel, Stateful {
         }
     }
 
-    // MARK: - Update Current Filters
-
-    /// Update the filter for a specific type with new values
-    private func updateCurrentFilters(for type: ItemFilterType, with newValue: [AnyItemFilter]) {
-        switch type {
-        case .genres:
-            currentFilters.genres = newValue.map(ItemGenre.init)
-        case .letter:
-            currentFilters.letter = newValue.map(ItemLetter.init)
-        case .sortBy:
-            currentFilters.sortBy = newValue.map(ItemSortBy.init)
-        case .sortOrder:
-            currentFilters.sortOrder = newValue.map(ItemSortOrder.init)
-        case .tags:
-            currentFilters.tags = newValue.map(ItemTag.init)
-        case .traits:
-            var traits = newValue.map(ItemTrait.init)
-
-            let isPlayedSelected = traits.contains(.isPlayed)
-            let isUnplayedSelected = traits.contains(.isUnplayed)
-
-            if isPlayedSelected && isUnplayedSelected {
-                let oldTraits = currentFilters.traits
-                let oldHasPlayed = oldTraits.contains(.isPlayed)
-                let oldHasUnplayed = oldTraits.contains(.isUnplayed)
-
-                if oldHasUnplayed {
-                    traits.removeAll { $0 == .isUnplayed }
-                } else if oldHasPlayed {
-                    traits.removeAll { $0 == .isPlayed }
-                } else {
-                    traits.removeAll { $0 == .isUnplayed }
-                }
-            }
-
-            currentFilters.traits = traits
-        case .years:
-            currentFilters.years = newValue.map(ItemYear.init)
-        }
-    }
-
-    // MARK: - Set Query Filters
-
-    /// Sets the query filters from the parent
-    private func setQueryFilters() async throws {
-        let queryFilters = try await getQueryFilters()
-
-        await MainActor.run {
-            allFilters.genres = queryFilters.genres
-            allFilters.tags = queryFilters.tags
-            allFilters.years = queryFilters.years
-        }
-    }
-
-    // MARK: - Get Query Filters
-
-    /// Gets the query filters from the parent
-    private func getQueryFilters() async throws -> (genres: [ItemGenre], tags: [ItemTag], years: [ItemYear]) {
+    @Function(\Action.Cases.getQueryFilters)
+    private func _getQueryFilters() async throws {
 
         let parameters = Paths.GetQueryFiltersLegacyParameters(
             userID: userSession.user.id,
@@ -254,6 +107,8 @@ final class FilterViewModel: ViewModel, Stateful {
             .sorted(by: >)
             .map(ItemYear.init)
 
-        return (genres, tags, years)
+        allFilters.genres = genres
+        allFilters.tags = tags
+        allFilters.years = years
     }
 }

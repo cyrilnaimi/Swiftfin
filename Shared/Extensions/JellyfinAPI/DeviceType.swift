@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import SwiftUI
@@ -35,45 +35,45 @@ enum DeviceType: String, Displayable, Codable, CaseIterable {
     var displayTitle: String {
         switch self {
         case .android:
-            return "Android"
+            L10n.android
         case .apple:
-            return "Apple"
+            L10n.apple
         case .chrome:
-            return "Chrome"
+            L10n.chrome
         case .edge:
-            return "Edge"
+            L10n.edge
         case .edgechromium:
-            return "Edge Chromium"
+            L10n.edgeChromium
         case .finamp:
-            return "Finamp"
+            L10n.finamp
         case .firefox:
-            return "Firefox"
+            L10n.firefox
         case .homeAssistant:
-            return "Home Assistant"
+            L10n.homeAssistant
         case .html5:
-            return "HTML5"
+            L10n.html5
         case .kodi:
-            return "Kodi"
+            L10n.kodi
         case .msie:
-            return "Internet Explorer"
+            L10n.internetExplorer
         case .opera:
-            return "Opera"
+            L10n.opera
         case .playstation:
-            return "PlayStation"
+            L10n.playStation
         case .roku:
-            return "Roku"
+            L10n.roku
         case .safari:
-            return "Safari"
+            L10n.safari
         case .samsungtv:
-            return "Samsung TV"
+            L10n.samsungTV
         case .webos:
-            return "WebOS"
+            L10n.webOS
         case .windows:
-            return "Windows"
+            L10n.windows
         case .xbox:
-            return "Xbox"
+            L10n.xbox
         case .other:
-            return L10n.other
+            L10n.other
         }
     }
 
@@ -189,45 +189,45 @@ enum DeviceType: String, Displayable, Codable, CaseIterable {
     var image: ImageResource {
         switch self {
         case .android:
-            return .deviceClientAndroid
+            .deviceClientAndroid
         case .apple:
-            return .deviceClientApple
+            .deviceClientApple
         case .chrome:
-            return .deviceBrowserChrome
+            .deviceBrowserChrome
         case .edge:
-            return .deviceBrowserEdge
+            .deviceBrowserEdge
         case .edgechromium:
-            return .deviceBrowserEdgechromium
+            .deviceBrowserEdgechromium
         case .finamp:
-            return .deviceClientFinamp
+            .deviceClientFinamp
         case .firefox:
-            return .deviceBrowserFirefox
+            .deviceBrowserFirefox
         case .homeAssistant:
-            return .deviceOtherHomeassistant
+            .deviceOtherHomeassistant
         case .html5:
-            return .deviceBrowserHtml5
+            .deviceBrowserHtml5
         case .kodi:
-            return .deviceClientKodi
+            .deviceClientKodi
         case .msie:
-            return .deviceBrowserMsie
+            .deviceBrowserMsie
         case .opera:
-            return .deviceBrowserOpera
+            .deviceBrowserOpera
         case .playstation:
-            return .deviceClientPlaystation
+            .deviceClientPlaystation
         case .roku:
-            return .deviceClientRoku
+            .deviceClientRoku
         case .safari:
-            return .deviceBrowserSafari
+            .deviceBrowserSafari
         case .samsungtv:
-            return .deviceClientSamsungtv
+            .deviceClientSamsungtv
         case .webos:
-            return .deviceClientWebos
+            .deviceClientWebos
         case .windows:
-            return .deviceClientWindows
+            .deviceClientWindows
         case .xbox:
-            return .deviceClientXbox
+            .deviceClientXbox
         case .other:
-            return .deviceOtherOther
+            .deviceOtherOther
         }
     }
 
@@ -236,41 +236,41 @@ enum DeviceType: String, Displayable, Codable, CaseIterable {
     var clientColor: Color {
         switch self {
         case .android:
-            return Color(red: 0.18, green: 0.8, blue: 0.44) // Android Green
+            Color(red: 0.18, green: 0.8, blue: 0.44) // Android Green
         case .apple:
-            return Color(red: 0.35, green: 0.35, blue: 0.35) // Apple Gray
+            Color(red: 0.35, green: 0.35, blue: 0.35) // Apple Gray
         case .chrome:
-            return Color(red: 0.98, green: 0.75, blue: 0.18) // Chrome Yellow
+            Color(red: 0.98, green: 0.75, blue: 0.18) // Chrome Yellow
         case .edge:
-            return Color(red: 0.19, green: 0.31, blue: 0.51) // Edge Gray
+            Color(red: 0.19, green: 0.31, blue: 0.51) // Edge Gray
         case .edgechromium:
-            return Color(red: 0.0, green: 0.45, blue: 0.75) // Edge Chromium Blue
+            Color(red: 0.0, green: 0.45, blue: 0.75) // Edge Chromium Blue
         case .firefox:
-            return Color(red: 1.0, green: 0.33, blue: 0.0) // Firefox Orange
+            Color(red: 1.0, green: 0.33, blue: 0.0) // Firefox Orange
         case .finamp:
-            return Color(red: 0.61, green: 0.32, blue: 0.88) // Finamp Purple
+            Color(red: 0.61, green: 0.32, blue: 0.88) // Finamp Purple
         case .homeAssistant:
-            return Color(red: 0.0, green: 0.55, blue: 0.87) // Home Assistant Blue
+            Color(red: 0.0, green: 0.55, blue: 0.87) // Home Assistant Blue
         case .kodi:
-            return Color(red: 0.0, green: 0.58, blue: 0.83) // Kodi Blue
+            Color(red: 0.0, green: 0.58, blue: 0.83) // Kodi Blue
         case .msie:
-            return Color(red: 0.0, green: 0.53, blue: 1.0) // Internet Explorer Blue
+            Color(red: 0.0, green: 0.53, blue: 1.0) // Internet Explorer Blue
         case .opera:
-            return Color(red: 1.0, green: 0.0, blue: 0.0) // Opera Red
+            Color(red: 1.0, green: 0.0, blue: 0.0) // Opera Red
         case .playstation:
-            return Color(red: 0.0, green: 0.32, blue: 0.65) // PlayStation Blue
+            Color(red: 0.0, green: 0.32, blue: 0.65) // PlayStation Blue
         case .roku:
-            return Color(red: 0.31, green: 0.09, blue: 0.55) // Roku Purple
+            Color(red: 0.31, green: 0.09, blue: 0.55) // Roku Purple
         case .safari:
-            return Color(red: 0.0, green: 0.48, blue: 1.0) // Safari Blue
+            Color(red: 0.0, green: 0.48, blue: 1.0) // Safari Blue
         case .samsungtv:
-            return Color(red: 0.0, green: 0.44, blue: 0.74) // Samsung Blue
+            Color(red: 0.0, green: 0.44, blue: 0.74) // Samsung Blue
         case .webos:
-            return Color(red: 0.6667, green: 0.1569, blue: 0.2745) // WebOS Pink
+            Color(red: 0.6667, green: 0.1569, blue: 0.2745) // WebOS Pink
         case .xbox:
-            return Color(red: 0.0, green: 0.5, blue: 0.0) // Xbox Green
+            Color(red: 0.0, green: 0.5, blue: 0.0) // Xbox Green
         default:
-            return Color.secondarySystemFill
+            Color.secondarySystemFill
         }
     }
 }

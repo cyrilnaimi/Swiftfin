@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import JellyfinAPI
@@ -42,19 +42,11 @@ struct ItemFilterCollection: Hashable, Storable {
         traits: ItemTrait.supportedCases
     )
 
-    var hasFilters: Bool {
+    var isNotEmpty: Bool {
         self != Self.default
     }
 
-    var activeFilterCount: Int {
-        var count = 0
-
-        for filter in ItemFilterType.allCases {
-            if self[keyPath: filter.collectionAnyKeyPath] != Self.default[keyPath: filter.collectionAnyKeyPath] {
-                count += 1
-            }
-        }
-
-        return count
+    var hasQueryableFilters: Bool {
+        genres.isNotEmpty || itemTypes.isNotEmpty || letter.isNotEmpty || tags.isNotEmpty || traits.isNotEmpty || years.isNotEmpty
     }
 }

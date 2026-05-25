@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Factory
@@ -31,7 +31,7 @@ extension ItemView {
         private var error: Error?
 
         let localTrailers: [BaseItemDto]
-        let externalTrailers: [MediaURL]
+        let externalTrailers: [NamedURL]
         private let logger = Logger.swiftfin()
 
         private var showLocalTrailers: Bool {
@@ -115,21 +115,21 @@ extension ItemView {
                 router.route(to: .videoPlayer(item: trailer, mediaSource: mediaSource))
             } else {
                 logger.log(level: .error, "No media sources found")
-                error = JellyfinAPIError(L10n.unknownError)
+                error = ErrorMessage(L10n.unknownError)
             }
         }
 
         // MARK: - Play: External Trailer
 
-        private func playExternalTrailer(_ trailer: MediaURL) {
+        private func playExternalTrailer(_ trailer: NamedURL) {
             if let url = URL(string: trailer.url), UIApplication.shared.canOpenURL(url) {
                 UIApplication.shared.open(url) { success in
                     guard !success else { return }
 
-                    error = JellyfinAPIError(L10n.unableToOpenTrailer)
+                    error = ErrorMessage(L10n.unableToOpenTrailer)
                 }
             } else {
-                error = JellyfinAPIError(L10n.unableToOpenTrailer)
+                error = ErrorMessage(L10n.unableToOpenTrailer)
             }
         }
     }

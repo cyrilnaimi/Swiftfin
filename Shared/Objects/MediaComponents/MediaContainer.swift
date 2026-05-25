@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 enum MediaContainer: String, CaseIterable, Codable, Displayable, Storable {
@@ -23,27 +23,27 @@ enum MediaContainer: String, CaseIterable, Codable, Displayable, Storable {
     var displayTitle: String {
         switch self {
         case .avi:
-            return "AVI"
+            L10n.avi
         case .flv:
-            return "FLV"
+            L10n.flv
         case .m4v:
-            return "M4V"
+            L10n.m4v
         case .mkv:
-            return "MKV"
+            L10n.mkv
         case .mov:
-            return "MOV"
+            L10n.mov
         case .mp4:
-            return "MP4"
+            L10n.mp4
         case .mpegts:
-            return "MPEG-TS"
+            L10n.mpegTS
         case .ts:
-            return "TS"
+            L10n.ts
         case .threeG2:
-            return "3G2"
+            L10n.threeG2
         case .threeGP:
-            return "3GP"
+            L10n.threeGP
         case .webm:
-            return "WEBM"
+            L10n.webm
         }
     }
 }

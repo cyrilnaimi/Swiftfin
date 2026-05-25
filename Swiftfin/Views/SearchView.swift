@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -35,14 +35,7 @@ struct SearchView: View {
     private var tabItemSelected
 
     @StateObject
-    private var viewModel = SearchViewModel()
-
-    private func errorView(with error: some Error) -> some View {
-        ErrorView(error: error)
-            .onRetry {
-                viewModel.search(query: searchQuery)
-            }
-    }
+    private var viewModel = SearchViewModel(filterViewModel: .init())
 
     @ViewBuilder
     private var suggestionsView: some View {
@@ -177,15 +170,14 @@ struct SearchView: View {
             action: select
         )
         .trailing {
-            SeeAllButton()
-                .onSelect {
-                    let viewModel = PagingLibraryViewModel(
-                        title: title,
-                        id: "search-\(type.hashValue)",
-                        items
-                    )
-                    router.route(to: .library(viewModel: viewModel))
-                }
+            SeeAllButton {
+                let viewModel = PagingLibraryViewModel(
+                    title: title,
+                    id: "search-\(type.hashValue)",
+                    items
+                )
+                router.route(to: .library(viewModel: viewModel))
+            }
         }
     }
 
@@ -193,13 +185,15 @@ struct SearchView: View {
         ZStack {
             switch viewModel.state {
             case .error:
-                viewModel.error.map { errorView(with: $0) }
+                viewModel.error.map {
+                    ErrorView(error: $0)
+                }
             case .initial:
                 if viewModel.hasNoResults {
-                    if searchQuery.isEmpty {
-                        suggestionsView
+                    if viewModel.canSearch {
+                        ContentUnavailableView.search
                     } else {
-                        Text(L10n.noResults)
+                        suggestionsView
                     }
                 } else {
                     resultsView
@@ -213,12 +207,13 @@ struct SearchView: View {
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .navigationTitle(L10n.search)
         .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            viewModel.search(query: searchQuery)
+        }
         .navigationBarFilterDrawer(
             viewModel: viewModel.filterViewModel,
             types: enabledDrawerFilters
-        ) {
-            router.route(to: .filter(type: $0.type, viewModel: $0.viewModel))
-        }
+        )
         .onFirstAppear {
             viewModel.getSuggestions()
         }

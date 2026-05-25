@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import CollectionVGrid
@@ -50,11 +50,6 @@ struct PagingLibraryView<Element: Poster>: View {
     private var defaultListColumnCount: Int
     @Default(.Customization.Library.posterType)
     private var defaultPosterType: PosterDisplayType
-
-    @Default(.Customization.Library.letterPickerEnabled)
-    private var letterPickerEnabled
-    @Default(.Customization.Library.letterPickerOrientation)
-    private var letterPickerOrientation
 
     @Namespace
     private var namespace
@@ -117,9 +112,9 @@ struct PagingLibraryView<Element: Poster>: View {
         }
     }
 
-    // MARK: onSelect
+    // MARK: action
 
-    private func onSelect(_ element: Element, in namespace: Namespace.ID) {
+    private func action(_ element: Element, in namespace: Namespace.ID) {
         switch element {
         case let element as BaseItemDto:
             select(item: element, in: namespace)
@@ -186,7 +181,7 @@ struct PagingLibraryView<Element: Poster>: View {
             item: item,
             type: posterType
         ) { namespace in
-            onSelect(item, in: namespace)
+            action(item, in: namespace)
         } label: {
             if item.showTitle {
                 PosterButton<Element>.TitleContentView(title: item.displayTitle)
@@ -205,16 +200,8 @@ struct PagingLibraryView<Element: Poster>: View {
             item: item,
             posterType: posterType
         ) { namespace in
-            onSelect(item, in: namespace)
+            action(item, in: namespace)
         }
-    }
-
-    @ViewBuilder
-    private func errorView(with error: some Error) -> some View {
-        ErrorView(error: error)
-            .onRetry {
-                viewModel.send(.refresh)
-            }
     }
 
     @ViewBuilder
@@ -242,36 +229,18 @@ struct PagingLibraryView<Element: Poster>: View {
     }
 
     @ViewBuilder
-    private var innerContent: some View {
+    private var contentView: some View {
         switch viewModel.state {
         case .content:
             if viewModel.elements.isEmpty {
-                Text(L10n.noResults)
+                ContentUnavailableView(L10n.noItems.localizedCapitalized, systemImage: "rectangle.on.rectangle.slash")
             } else {
                 elementsView
             }
         case .initial, .refreshing:
-            DelayedProgressView()
+            ProgressView()
         default:
             AssertionFailureView("Expected view for unexpected state")
-        }
-    }
-
-    @ViewBuilder
-    private var contentView: some View {
-        if letterPickerEnabled, let filterViewModel = viewModel.filterViewModel {
-            ZStack(alignment: letterPickerOrientation.alignment) {
-                innerContent
-                    .padding(letterPickerOrientation.edge, LetterPickerBar.size + 10)
-                    .frame(maxWidth: .infinity)
-
-                LetterPickerBar(viewModel: filterViewModel)
-                    .padding(.top, safeArea.top)
-                    .padding(.bottom, safeArea.bottom)
-                    .padding(letterPickerOrientation.edge, 10)
-            }
-        } else {
-            innerContent
         }
     }
 
@@ -287,23 +256,25 @@ struct PagingLibraryView<Element: Poster>: View {
             case .content, .initial, .refreshing:
                 contentView
             case let .error(error):
-                errorView(with: error)
+                ErrorView(error: error)
             }
         }
         .animation(.linear(duration: 0.1), value: viewModel.state)
-        .ignoresSafeArea()
+        .ignoresSafeArea(.all, edges: .vertical)
+        .letterPickerBar(filterViewModel: viewModel.filterViewModel)
         .onSizeChanged { _, safeArea in
             self.safeArea = safeArea
         }
         .navigationTitle(viewModel.parent?.displayTitle ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            viewModel.send(.refresh)
+        }
         .ifLet(viewModel.filterViewModel) { view, filterViewModel in
             view.navigationBarFilterDrawer(
                 viewModel: filterViewModel,
                 types: enabledDrawerFilters
-            ) {
-                router.route(to: .filter(type: $0.type, viewModel: $0.viewModel))
-            }
+            )
         }
         .onChange(of: defaultDisplayType) { newValue in
             guard !Defaults[.Customization.Library.rememberLayout] else { return }

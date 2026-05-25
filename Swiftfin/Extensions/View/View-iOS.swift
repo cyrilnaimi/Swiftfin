@@ -3,12 +3,13 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
+import Mantis
 import SwiftUI
-import SwiftUIIntrospect
+@_spi(Advanced) import SwiftUIIntrospect
 
 extension View {
 
@@ -16,19 +17,23 @@ extension View {
         modifier(DetectOrientation(orientation: orientation))
     }
 
+    /// - Important: This does nothing on iOS.
+    func focusSection() -> some View {
+        self
+    }
+
     func navigationBarOffset(_ scrollViewOffset: Binding<CGFloat>, start: CGFloat, end: CGFloat) -> some View {
         modifier(NavigationBarOffsetModifier(scrollViewOffset: scrollViewOffset, start: start, end: end))
     }
 
-    func navigationBarDrawer<Drawer: View>(@ViewBuilder _ drawer: @escaping () -> Drawer) -> some View {
+    func navigationBarDrawer(@ViewBuilder _ drawer: @escaping () -> some View) -> some View {
         modifier(NavigationBarDrawerModifier(drawer: drawer))
     }
 
     @ViewBuilder
     func navigationBarFilterDrawer(
         viewModel: FilterViewModel,
-        types: [ItemFilterType],
-        onSelect: @escaping (NavigationBarFilterDrawer.Parameters) -> Void
+        types: [ItemFilterType]
     ) -> some View {
         if types.isEmpty {
             self
@@ -38,7 +43,6 @@ extension View {
                     viewModel: viewModel,
                     types: types
                 )
-                .onSelect(onSelect)
             }
         }
     }
@@ -57,11 +61,11 @@ extension View {
     }
 
     @ViewBuilder
-    func navigationBarMenuButton<Content: View>(
+    func navigationBarMenuButton(
         isLoading: Bool = false,
         isHidden: Bool = false,
         @ViewBuilder
-        _ items: @escaping () -> Content
+        _ items: @escaping () -> some View
     ) -> some View {
         modifier(
             NavigationBarMenuButtonModifier(
@@ -74,8 +78,31 @@ extension View {
 
     @ViewBuilder
     func listRowCornerRadius(_ radius: CGFloat) -> some View {
-        introspect(.listCell, on: .iOS(.v16), .iOS(.v17), .iOS(.v18)) { cell in
-            cell.layer.cornerRadius = radius
+        introspect(.listCell, on: .iOS(.v16...)) { cell in
+            if #available(iOS 26, *) {
+                cell.cornerConfiguration = .uniformCorners(radius: .fixed(radius))
+            } else {
+                cell.layer.cornerRadius = radius
+            }
         }
+    }
+
+    /// Photo Picker with cropping after selection
+    func photoPicker(
+        isPresented: Binding<Bool>,
+        isSaving: Bool,
+        cropShape: Mantis.CropShapeType = .rect,
+        presetRatio: Mantis.PresetFixedRatioType = .canUseMultiplePresetFixedRatio(defaultRatio: 0),
+        onSave: @escaping (UIImage) -> Void
+    ) -> some View {
+        modifier(
+            PhotoPickerModifier(
+                isPresented: isPresented,
+                isSaving: isSaving,
+                cropShape: cropShape,
+                presetRatio: presetRatio,
+                onSave: onSave
+            )
+        )
     }
 }

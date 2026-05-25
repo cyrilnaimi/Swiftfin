@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -28,7 +28,7 @@ extension ItemView.AboutView {
             PosterButton(
                 item: viewModel.item,
                 type: .portrait,
-                action: onSelect
+                action: action
             ) {
                 EmptyView()
             }
@@ -39,7 +39,7 @@ extension ItemView.AboutView {
         // MARK: - On Select
 
         // Switch case to allow other funcitonality if we need to expand this beyond episode > series
-        private func onSelect() {
+        private func action() {
             switch viewModel.item.type {
             case .episode:
                 if let episodeViewModel = viewModel as? EpisodeItemViewModel,

@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
@@ -24,7 +24,7 @@ final class ProgramsViewModel: ViewModel, Stateful {
     // MARK: Action
 
     enum Action: Equatable {
-        case error(JellyfinAPIError)
+        case error(ErrorMessage)
         case refresh
     }
 
@@ -32,7 +32,7 @@ final class ProgramsViewModel: ViewModel, Stateful {
 
     enum State: Hashable {
         case content
-        case error(JellyfinAPIError)
+        case error(ErrorMessage)
         case initial
         case refreshing
     }
@@ -142,7 +142,6 @@ final class ProgramsViewModel: ViewModel, Stateful {
             .appending(.channelInfo)
         parameters.isAiring = true
         parameters.limit = 20
-        parameters.userID = userSession.user.id
 
         let request = Paths.getRecommendedPrograms(parameters: parameters)
         let response = try await userSession.client.send(request)
@@ -157,7 +156,6 @@ final class ProgramsViewModel: ViewModel, Stateful {
             .appending(.channelInfo)
         parameters.hasAired = false
         parameters.limit = 20
-        parameters.userID = userSession.user.id
 
         parameters.isKids = section == .kids
         parameters.isMovie = section == .movies

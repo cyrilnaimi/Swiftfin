@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Foundation
@@ -16,6 +16,7 @@ extension TranscodingProfile {
         conditions: [ProfileCondition]? = nil,
         context: EncodingContext? = nil,
         isCopyTimestamps: Bool? = nil,
+        enableAudioVbrEncoding: Bool? = nil,
         enableMpegtsM2TsMode: Bool? = nil,
         enableSubtitlesInManifest: Bool? = nil,
         isEstimateContentLength: Bool? = nil,
@@ -25,27 +26,28 @@ extension TranscodingProfile {
         segmentLength: Int? = nil,
         transcodeSeekInfo: TranscodeSeekInfo? = nil,
         type: DlnaProfileType? = nil,
-        @CommaStringBuilder<AudioCodec> audioCodecs: () -> String = { "" },
-        @CommaStringBuilder<VideoCodec> videoCodecs: () -> String = { "" },
-        @CommaStringBuilder<MediaContainer> containers: () -> String = { "" }
+        @ArrayBuilder<AudioCodec> audioCodecs: () -> [AudioCodec] = { [] },
+        @ArrayBuilder<VideoCodec> videoCodecs: () -> [VideoCodec] = { [] },
+        @ArrayBuilder<MediaContainer> containers: () -> [MediaContainer] = { [] }
     ) {
-        let audioCodecs = audioCodecs()
-        let videoCodecs = videoCodecs()
-        let containers = containers()
+        let audioCodecs = audioCodecs().map(\.rawValue).joined(separator: ",")
+        let videoCodecs = videoCodecs().map(\.rawValue).joined(separator: ",")
+        let containers = containers().map(\.rawValue).joined(separator: ",")
 
         self.init(
+            protocol: `protocol`,
             audioCodec: audioCodecs.isEmpty ? nil : audioCodecs,
-            isBreakOnNonKeyFrames: isBreakOnNonKeyFrames,
             conditions: conditions,
             container: containers.isEmpty ? nil : containers,
             context: context,
-            isCopyTimestamps: isCopyTimestamps,
+            enableAudioVbrEncoding: enableAudioVbrEncoding,
             enableMpegtsM2TsMode: enableMpegtsM2TsMode,
             enableSubtitlesInManifest: enableSubtitlesInManifest,
+            isBreakOnNonKeyFrames: isBreakOnNonKeyFrames,
+            isCopyTimestamps: isCopyTimestamps,
             isEstimateContentLength: isEstimateContentLength,
             maxAudioChannels: maxAudioChannels,
             minSegments: minSegments,
-            protocol: `protocol`,
             segmentLength: segmentLength,
             transcodeSeekInfo: transcodeSeekInfo,
             type: type,

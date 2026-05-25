@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Algorithms
@@ -29,9 +29,9 @@ extension String {
 
     func appending(_ element: @autoclosure () -> String, if condition: Bool) -> String {
         if condition {
-            return self + element()
+            self + element()
         } else {
-            return self
+            self
         }
     }
 
@@ -51,9 +51,9 @@ extension String {
 
     func prepending(_ element: String, if condition: Bool) -> String {
         if condition {
-            return element + self
+            element + self
         } else {
-            return self
+            self
         }
     }
 
@@ -81,6 +81,20 @@ extension String {
     static let emptyDash = "--"
 
     static let emptyRuntime = "--:--"
+
+    static let empty = ""
+
+    static let tab = "\u{0009}"
+    /// —
+    static let emDash = "\u{2014}"
+    /// –
+    static let enDash = "\u{2013}"
+    /// -
+    static let hyphen = "\u{002D}"
+    /// ...
+    static let ellipsis = "\u{2026}"
+    /// x
+    static let multiply = "\u{00D7}"
 
     var shortFileName: String {
         (split(separator: "/").last?.description ?? self)
@@ -128,6 +142,18 @@ extension String {
 
     var url: URL? {
         URL(string: self)
+    }
+}
+
+extension String? {
+
+    /// Splits a delimited raw value string into typed components
+    func components<T: RawRepresentable>(
+        of type: T.Type,
+        separator: Character = ","
+    ) -> [T] where T.RawValue == String {
+        self?.split(separator: separator)
+            .compactMap { T(rawValue: String($0)) } ?? []
     }
 }
 

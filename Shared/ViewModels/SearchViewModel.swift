@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
@@ -54,9 +54,14 @@ final class SearchViewModel: ViewModel {
         items.values.allSatisfy(\.isEmpty)
     }
 
+    var canSearch: Bool {
+        searchQuery.value.isNotEmpty || filterViewModel.currentFilters.hasQueryableFilters
+    }
+
     // MARK: init
 
-    init(filterViewModel: FilterViewModel = .init()) {
+    @MainActor
+    init(filterViewModel: FilterViewModel) {
         self.filterViewModel = filterViewModel
         super.init()
 
@@ -64,7 +69,7 @@ final class SearchViewModel: ViewModel {
             .debounce(for: 0.5, scheduler: RunLoop.main)
             .sink { [weak self] query in
                 guard let self else { return }
-                guard query.isNotEmpty else { return }
+
                 actuallySearch(query: query)
             }
             .store(in: &cancellables)
@@ -73,8 +78,8 @@ final class SearchViewModel: ViewModel {
             .debounce(for: 0.5, scheduler: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
-                guard searchQuery.value.isNotEmpty else { return }
-                search(query: searchQuery.value)
+
+                actuallySearch(query: searchQuery.value)
             }
             .store(in: &cancellables)
     }
@@ -84,13 +89,13 @@ final class SearchViewModel: ViewModel {
         searchQuery.value = query
 
         await cancel()
-        items.removeAll()
     }
 
     @Function(\Action.Cases.actuallySearch)
     private func _actuallySearch(_ query: String) async throws {
 
-        guard query.isNotEmpty else {
+        guard self.canSearch else {
+            items.removeAll()
             return
         }
 
@@ -142,7 +147,7 @@ final class SearchViewModel: ViewModel {
 
     private func _getItems(query: String, itemType: BaseItemKind) async throws -> [BaseItemDto] {
 
-        var parameters = Paths.GetItemsByUserIDParameters()
+        var parameters = Paths.GetItemsParameters()
         parameters.enableUserData = true
         parameters.fields = .MinimumFields
         parameters.includeItemTypes = [itemType]
@@ -154,7 +159,7 @@ final class SearchViewModel: ViewModel {
         let filters = filterViewModel.currentFilters
         parameters.filters = filters.traits
         parameters.genres = filters.genres.map(\.value)
-        parameters.sortBy = filters.sortBy.map(\.rawValue)
+        parameters.sortBy = filters.sortBy
         parameters.sortOrder = filters.sortOrder
         parameters.tags = filters.tags.map(\.value)
         parameters.years = filters.years.map(\.intValue)
@@ -168,7 +173,7 @@ final class SearchViewModel: ViewModel {
                 .first
         }
 
-        let request = Paths.getItemsByUserID(userID: userSession.user.id, parameters: parameters)
+        let request = Paths.getItems(parameters: parameters)
         let response = try await userSession.client.send(request)
 
         return response.value.items ?? []
@@ -191,15 +196,15 @@ final class SearchViewModel: ViewModel {
     @Function(\Action.Cases.getSuggestions)
     private func _getSuggestions() async throws {
 
-        filterViewModel.send(.getQueryFilters)
+        await filterViewModel.getQueryFilters()
 
-        var parameters = Paths.GetItemsByUserIDParameters()
+        var parameters = Paths.GetItemsParameters()
         parameters.includeItemTypes = [.movie, .series]
         parameters.isRecursive = true
         parameters.limit = 10
-        parameters.sortBy = [ItemSortBy.random.rawValue]
+        parameters.sortBy = [ItemSortBy.random]
 
-        let request = Paths.getItemsByUserID(userID: userSession.user.id, parameters: parameters)
+        let request = Paths.getItems(parameters: parameters)
         let response = try await userSession.client.send(request)
 
         self.suggestions = response.value.items ?? []

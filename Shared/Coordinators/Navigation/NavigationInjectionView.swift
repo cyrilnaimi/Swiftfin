@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import PreferencesView
@@ -12,13 +12,14 @@ import Transmission
 
 // TODO: have full screen zoom presentation zoom from/to center
 //       - probably need to make mock view with matching ids
-// TODO: have presentation dismissal be through preference keys
-//       - issue with all of the VC/view wrapping
 
-extension EnvironmentValues {
+struct PresentationControllerShouldDismissPreferenceKey: PreferenceKey {
 
-    @Entry
-    var presentationControllerShouldDismiss: Binding<Bool> = .constant(true)
+    static var defaultValue: Bool = true
+
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = nextValue()
+    }
 }
 
 struct NavigationInjectionView: View {
@@ -69,6 +70,7 @@ struct NavigationInjectionView: View {
                 NavigationInjectionView(coordinator: newCoordinator) {
                     route.destination
                 }
+                .environmentObject(rootCoordinator)
                 .background(.regularMaterial)
             }
         #else // <- Start: Use this for both OS when fixed
@@ -82,6 +84,7 @@ struct NavigationInjectionView: View {
                 NavigationInjectionView(coordinator: newCoordinator) {
                     route.destination
                 }
+                .environmentObject(rootCoordinator)
             }
         #endif // <- End
         #if os(tvOS)
@@ -93,6 +96,7 @@ struct NavigationInjectionView: View {
             NavigationInjectionView(coordinator: newCoordinator) {
                 route.destination
             }
+            .environmentObject(rootCoordinator)
         }
         #else
         .presentation(
@@ -110,8 +114,11 @@ struct NavigationInjectionView: View {
                 let vc = UIPreferencesHostingController {
                     NavigationInjectionView(coordinator: .init()) {
                         routeBinding.wrappedValue.destination
-                            .environment(\.presentationControllerShouldDismiss, $isPresentationInteractive)
+                            .onPreferenceChange(PresentationControllerShouldDismissPreferenceKey.self) { newValue in
+                                isPresentationInteractive = newValue
+                            }
                     }
+                    .environmentObject(rootCoordinator)
                 }
 
                 // TODO: presentation options for customizing background color, dimming effect, etc.

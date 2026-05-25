@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import JellyfinAPI
@@ -20,18 +20,6 @@ extension NavigationRoute {
             style: .sheet
         ) {
             AddItemElementView(viewModel: viewModel, type: .genres)
-        }
-    }
-
-    static func addItemImage(viewModel: ItemImagesViewModel, imageType: ImageType) -> NavigationRoute {
-        NavigationRoute(
-            id: "addItemImage",
-            style: .push(.automatic)
-        ) {
-            AddItemImageView(
-                viewModel: viewModel,
-                imageType: imageType
-            )
         }
     }
 
@@ -63,10 +51,11 @@ extension NavigationRoute {
     }
     #endif
 
+    @MainActor
     static func castAndCrew(people: [BaseItemPerson], itemID: String?) -> NavigationRoute {
         let id: String? = itemID == nil ? nil : "castAndCrew-\(itemID!)"
         let viewModel = PagingLibraryViewModel(
-            title: L10n.castAndCrew,
+            title: L10n.castAndCrew.localizedCapitalized,
             id: id,
             people
         )
@@ -77,18 +66,7 @@ extension NavigationRoute {
     }
 
     #if os(iOS)
-    static func cropItemImage(viewModel: ItemImagesViewModel, image: UIImage, type: ImageType) -> NavigationRoute {
-        NavigationRoute(
-            id: "crop-Image"
-        ) {
-            ItemPhotoCropView(
-                viewModel: viewModel,
-                image: image,
-                type: type
-            )
-        }
-    }
-
+    @MainActor
     static func editGenres(item: BaseItemDto) -> NavigationRoute {
         NavigationRoute(id: "editGenres") {
             EditItemElementView<String>(
@@ -101,30 +79,17 @@ extension NavigationRoute {
         }
     }
 
-    static func editSubtitles(item: BaseItemDto) -> NavigationRoute {
-        NavigationRoute(id: "editSubtitles") {
-            ItemSubtitlesView(item: item)
-        }
-    }
-
-    static func uploadSubtitle(viewModel: SubtitleEditorViewModel) -> NavigationRoute {
-        NavigationRoute(
-            id: "uploadSubtitle",
-            style: .sheet
-        ) {
-            ItemSubtitleUploadView(viewModel: viewModel)
-        }
-    }
-
-    static func editMetadata(item: BaseItemDto) -> NavigationRoute {
+    @MainActor
+    static func editMetadata(viewModel: ItemEditorViewModel<BaseItemDto>) -> NavigationRoute {
         NavigationRoute(
             id: "editMetadata",
             style: .sheet
         ) {
-            EditMetadataView(viewModel: ItemEditorViewModel(item: item))
+            EditMetadataView(viewModel: viewModel)
         }
     }
 
+    @MainActor
     static func editPeople(item: BaseItemDto) -> NavigationRoute {
         NavigationRoute(id: "editPeople") {
             EditItemElementView<BaseItemPerson>(
@@ -137,9 +102,10 @@ extension NavigationRoute {
         }
     }
 
+    @MainActor
     static func editStudios(item: BaseItemDto) -> NavigationRoute {
         NavigationRoute(id: "editStudios") {
-            EditItemElementView<NameGuidPair>(
+            EditItemElementView<NameIDPair>(
                 viewModel: StudioEditorViewModel(item: item),
                 type: .studios,
                 route: { router, viewModel in
@@ -149,6 +115,16 @@ extension NavigationRoute {
         }
     }
 
+    static func editSubtitles(item: BaseItemDto) -> NavigationRoute {
+        NavigationRoute(
+            id: "editSubtitles",
+            style: .sheet
+        ) {
+            ItemSubtitlesView(item: item)
+        }
+    }
+
+    @MainActor
     static func editTags(item: BaseItemDto) -> NavigationRoute {
         NavigationRoute(id: "editTags") {
             EditItemElementView<String>(
@@ -175,15 +151,25 @@ extension NavigationRoute {
             id: "identifyItemResults",
             style: .sheet
         ) {
-            IdentifyItemView.RemoteSearchResultView(
+            IdentifyItemResultView(
                 viewModel: viewModel,
                 result: result
             )
         }
     }
+
+    static func uploadSubtitle(viewModel: ItemSubtitlesViewModel) -> NavigationRoute {
+        NavigationRoute(
+            id: "uploadSubtitle",
+            style: .sheet
+        ) {
+            ItemSubtitleUploadView(viewModel: viewModel)
+        }
+    }
+
     #endif
 
-    static func searchSubtitle(viewModel: SubtitleEditorViewModel) -> NavigationRoute {
+    static func searchSubtitle(viewModel: ItemSubtitlesViewModel) -> NavigationRoute {
         NavigationRoute(
             id: "searchSubtitle",
             style: .sheet
@@ -202,7 +188,7 @@ extension NavigationRoute {
     }
 
     #if os(iOS)
-    static func itemEditor(viewModel: ItemViewModel) -> NavigationRoute {
+    static func itemEditor(viewModel: ItemEditorViewModel<BaseItemDto>) -> NavigationRoute {
         NavigationRoute(
             id: "itemEditor",
             style: .sheet
@@ -211,20 +197,7 @@ extension NavigationRoute {
         }
     }
 
-    static func itemImageDetails(viewModel: ItemImagesViewModel, imageInfo: ImageInfo) -> NavigationRoute {
-        NavigationRoute(
-            id: "itemImageDetails",
-            style: .sheet
-        ) {
-            ItemImageDetailsView(
-                viewModel: viewModel,
-                imageInfo: imageInfo
-            )
-            .isEditing(true)
-        }
-    }
-
-    static func itemImages(viewModel: ItemImagesViewModel) -> NavigationRoute {
+    static func itemImages(viewModel: ItemImageViewModel) -> NavigationRoute {
         NavigationRoute(
             id: "itemImages",
             style: .sheet
@@ -233,19 +206,52 @@ extension NavigationRoute {
         }
     }
 
-    static func itemImageSelector(viewModel: ItemImagesViewModel, imageType: ImageType) -> NavigationRoute {
+    static func itemImageDetail(viewModel: ItemImageViewModel, imageInfo: ImageInfo) -> NavigationRoute {
         NavigationRoute(
-            id: "itemImageSelector",
+            id: "itemImageDetail",
             style: .sheet
         ) {
-            ItemImagePicker(
+            ItemImageDetailView(
                 viewModel: viewModel,
-                type: imageType
+                imageInfo: imageInfo
             )
         }
     }
 
+    static func remoteImageDetail(
+        viewModel: ItemImageViewModel,
+        remoteImageInfo: RemoteImageInfo
+    ) -> NavigationRoute {
+        NavigationRoute(
+            id: "remoteImageDetail",
+            withNamespace: { .push(.zoom(sourceID: "item", namespace: $0)) }
+        ) {
+            RemoteImageDetailView(
+                viewModel: viewModel,
+                remoteImageInfo: remoteImageInfo
+            )
+        }
+    }
+
+    static func remoteImageSearch(viewModel: ItemImageViewModel, imageType: ImageType) -> NavigationRoute {
+        NavigationRoute(
+            id: "remoteImageSearch",
+            style: .sheet
+        ) {
+            RemoteImageSearchView(viewModel: viewModel, imageType: imageType)
+        }
+    }
+
     #endif
+
+    static func itemMetadataRefresh(viewModel: ItemEditorViewModel<BaseItemDto>) -> NavigationRoute {
+        NavigationRoute(
+            id: "itemMetadataRefresh",
+            style: .sheet
+        ) {
+            ItemRefreshView(viewModel: viewModel)
+        }
+    }
 
     static func itemOverview(item: BaseItemDto) -> NavigationRoute {
         NavigationRoute(
@@ -255,21 +261,4 @@ extension NavigationRoute {
             ItemOverviewView(item: item)
         }
     }
-
-    #if os(iOS)
-
-    static func itemSearchImageDetails(viewModel: ItemImagesViewModel, remoteImageInfo: RemoteImageInfo) -> NavigationRoute {
-        NavigationRoute(
-            id: "itemSearchImageDetails",
-            style: .sheet
-        ) {
-            ItemImageDetailsView(
-                viewModel: viewModel,
-                remoteImageInfo: remoteImageInfo
-            )
-            .isEditing(false)
-        }
-    }
-
-    #endif
 }

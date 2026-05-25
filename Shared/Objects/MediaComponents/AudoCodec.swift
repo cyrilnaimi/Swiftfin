@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 enum AudioCodec: String, CaseIterable, Codable, Displayable, Storable {
@@ -44,69 +44,69 @@ enum AudioCodec: String, CaseIterable, Codable, Displayable, Storable {
     var displayTitle: String {
         switch self {
         case .aac:
-            return "AAC"
+            L10n.aac
         case .ac3:
-            return "AC-3"
+            L10n.ac3
         case .amr_nb:
-            return "AMR-NB"
+            L10n.amrNB
         case .amr_wb:
-            return "AMR-WB"
+            L10n.amrWB
         case .dts:
-            return "DTS"
+            L10n.dts
         case .dts_hd:
-            return "DTS-HD"
+            L10n.dtsHD
         case .eac3:
-            return "E-AC-3"
+            L10n.eac3
         case .flac:
-            return "FLAC"
+            L10n.flac
         case .alac:
-            return "ALAC"
+            L10n.alac
         case .mlp:
-            return "MLP"
+            L10n.mlp
         case .mp1:
-            return "MP1"
+            L10n.mp1
         case .mp2:
-            return "MP2"
+            L10n.mp2
         case .mp3:
-            return "MP3"
+            L10n.mp3
         case .nellymoser:
-            return "Nellymoser"
+            L10n.nellymoser
         case .opus:
-            return "Opus"
+            L10n.opus
         case .pcm_alaw:
-            return "PCM ALAW"
+            L10n.pcmALAW
         case .pcm_bluray:
-            return "PCM Bluray"
+            L10n.pcmBluray
         case .pcm_dvd:
-            return "PCM DVD"
+            L10n.pcmDVD
         case .pcm_mulaw:
-            return "PCM MULAW"
+            L10n.pcmMULAW
         case .pcm_s16be:
-            return "PCM S16BE"
+            L10n.pcmS16BE
         case .pcm_s16le:
-            return "PCM S16LE"
+            L10n.pcmS16LE
         case .pcm_s24be:
-            return "PCM S24BE"
+            L10n.pcmS24BE
         case .pcm_s24le:
-            return "PCM S24LE"
+            L10n.pcmS24LE
         case .pcm_u8:
-            return "PCM U8"
+            L10n.pcmU8
         case .speex:
-            return "Speex"
+            L10n.speex
         case .truehd:
-            return "TrueHD"
+            L10n.trueHD
         case .vorbis:
-            return "Vorbis"
+            L10n.vorbis
         case .wavpack:
-            return "WavPack"
+            L10n.wavPack
         case .wmalossless:
-            return "WMA Lossless"
+            L10n.wmaLossless
         case .wmapro:
-            return "WMA Pro"
+            L10n.wmaPro
         case .wmav1:
-            return "WMA V1"
+            L10n.wmaV1
         case .wmav2:
-            return "WMA V2"
+            L10n.wmaV2
         }
     }
 }

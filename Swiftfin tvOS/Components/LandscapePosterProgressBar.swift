@@ -3,20 +3,15 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import SwiftUI
 
 struct LandscapePosterProgressBar: View {
 
-    private let title: String?
-    private let progress: Double
-
-    init(title: String? = nil, progress: Double) {
-        self.title = title
-        self.progress = progress
-    }
+    var title: String?
+    let progress: Double
 
     var body: some View {
         ZStack(alignment: .bottom) {

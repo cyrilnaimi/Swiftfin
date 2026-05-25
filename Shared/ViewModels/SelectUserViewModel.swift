@@ -3,13 +3,11 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
-import Combine
-import CoreStore
+import Factory
 import Foundation
-import JellyfinAPI
 import KeychainSwift
 import OrderedCollections
 
@@ -23,12 +21,37 @@ final class SelectUserViewModel: ViewModel {
         case error
         case getServers
         case signIn(UserState, pin: String)
+
+        var transition: Transition {
+            switch self {
+            case .getServers:
+                .to(.loading, then: .content)
+                    .whenBackground(.refreshing)
+            case .deleteUsers:
+                .background(.refreshing)
+            case .error, .signIn:
+                .none
+            }
+        }
+    }
+
+    enum BackgroundState {
+        case refreshing
     }
 
     enum Event {
         case error
         case signedIn(UserState)
     }
+
+    enum State {
+        case initial
+        case loading
+        case content
+    }
+
+    @Injected(\.keychainService)
+    private var keychain
 
     @Published
     private(set) var servers: OrderedDictionary<ServerState, [UserState]> = [:]
@@ -44,39 +67,24 @@ final class SelectUserViewModel: ViewModel {
 
     @Function(\Action.Cases.getServers)
     private func _getServers() async throws {
-        let newServers = try SwiftfinStore
-            .dataStack
-            .fetchAll(From<ServerModel>())
-            .map(\.state)
-            .sorted(using: \.name)
-            .zipped(map: getUsers)
-            .reduce(into: OrderedDictionary<ServerState, [UserState]>()) { partialResult, pair in
-                partialResult[pair.0] = pair.1
+        let usersByServerID = StoredValues[.User.users]
+            .reduce(into: [String: [UserState]]()) { partialResult, user in
+                partialResult[user.serverID, default: []].append(user)
             }
 
-        servers = newServers
-    }
-
-    private func getUsers(for server: ServerState) throws -> [UserState] {
-        guard let storedServer = try? dataStack.fetchOne(From<ServerModel>().where(\.$id == server.id)) else {
-            logger.critical(
-                "Unable to find server for users",
-                metadata: [
-                    "serverName": .string(server.name),
-                ]
-            )
-            throw JellyfinAPIError(L10n.unknownError)
-        }
-
-        return storedServer.users
-            .map(\.state)
+        servers = StoredValues[.Server.servers]
+            .sorted(using: \.name)
+            .reduce(into: .init()) { partialResult, server in
+                partialResult[server] = usersByServerID[server.id, default: []]
+                    .sorted(using: \.username)
+            }
     }
 
     @Function(\Action.Cases.signIn)
     private func _signIn(_ user: UserState, _ pin: String) throws {
         if user.accessPolicy == .requirePin, let storedPin = keychain.get("\(user.id)-pin") {
             guard pin == storedPin else {
-                throw JellyfinAPIError(L10n.incorrectPinForUser(user.username))
+                throw ErrorMessage(L10n.incorrectPinForUser(user.username))
             }
         }
 

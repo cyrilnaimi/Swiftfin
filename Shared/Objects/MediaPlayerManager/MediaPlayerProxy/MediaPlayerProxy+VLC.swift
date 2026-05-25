@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -19,6 +19,8 @@ class VLCMediaPlayerProxy: VideoMediaPlayerProxy,
 
     let isBuffering: PublishedBox<Bool> = .init(initialValue: false)
     let videoSize: PublishedBox<CGSize> = .init(initialValue: .zero)
+    let droppedFrames: PublishedBox<Int> = .init(initialValue: 0)
+    let corruptedFrames: PublishedBox<Int> = .init(initialValue: 0)
     let vlcUIProxy: VLCVideoPlayer.Proxy = .init()
 
     weak var manager: MediaPlayerManager? {
@@ -46,7 +48,18 @@ class VLCMediaPlayerProxy: VideoMediaPlayerProxy,
     }
 
     func jumpForward(_ seconds: Duration) {
-        vlcUIProxy.jumpForward(seconds)
+        let target: Duration
+
+        if let runtime = manager?.item.runtime, let current = manager?.seconds {
+            let remaining = max(.zero, runtime - current)
+            target = min(seconds, remaining)
+        } else {
+            target = seconds
+        }
+
+        guard target > .zero else { return }
+
+        vlcUIProxy.jumpForward(target)
     }
 
     func jumpBackward(_ seconds: Duration) {
@@ -133,19 +146,27 @@ extension VLCMediaPlayerProxy {
 
             if !baseItem.isLiveStream {
                 configuration.startSeconds = startSeconds
-                configuration.audioIndex = .absolute(mediaSource.defaultAudioStreamIndex ?? -1)
-                configuration.subtitleIndex = .absolute(mediaSource.defaultSubtitleStreamIndex ?? -1)
+
+                let subtitleIndex = item.indexMap[item.selectedSubtitleStreamIndex] ?? -1
+
+                if mediaSource.transcodingURL != nil {
+                    configuration.audioIndex = .auto
+                } else {
+                    let audioIndex = item.indexMap[item.selectedAudioStreamIndex] ?? -1
+                    configuration.audioIndex = .absolute(audioIndex)
+                }
+
+                configuration.subtitleIndex = .absolute(subtitleIndex)
             }
 
             configuration.subtitleSize = .absolute(25 - Defaults[.VideoPlayer.Subtitle.subtitleSize])
             configuration.subtitleColor = .absolute(Defaults[.VideoPlayer.Subtitle.subtitleColor].uiColor)
-
+            configuration.rate = .absolute(Defaults[.VideoPlayer.Playback.playbackRate])
             if let font = UIFont(name: Defaults[.VideoPlayer.Subtitle.subtitleFontName], size: 1) {
                 configuration.subtitleFont = .absolute(font)
             }
 
-            configuration.playbackChildren = item.subtitleStreams
-                .filter { $0.deliveryMethod == .external }
+            configuration.playbackChildren = item.subtitleStreams.sidecarSubtitles
                 .compactMap(\.asVLCPlaybackChild)
 
             return configuration
@@ -164,6 +185,8 @@ extension VLCMediaPlayerProxy {
 
                         if let proxy = manager.proxy as? any VideoMediaPlayerProxy {
                             proxy.videoSize.value = info.videoSize
+                            proxy.droppedFrames.value = info.statistics.lostPictures
+                            proxy.corruptedFrames.value = info.statistics.demuxCorrupted
                         }
                     }
                     .onStateUpdated { state, info in
@@ -177,7 +200,7 @@ extension VLCMediaPlayerProxy {
                             manager.proxy?.isBuffering.value = true
                         case .ended:
                             // Live streams will send stopped/ended events
-                            guard !playbackItem.baseItem.isLiveStream else { return }
+                            guard !(manager.playbackItem?.baseItem.isLiveStream ?? false) else { return }
                             manager.proxy?.isBuffering.value = false
                             manager.ended()
                         case .stopped: ()
@@ -186,10 +209,13 @@ extension VLCMediaPlayerProxy {
                         // than react to the event.
                         case .error:
                             manager.proxy?.isBuffering.value = false
-                            manager.error(JellyfinAPIError("VLC player is unable to perform playback"))
+                            manager.error(ErrorMessage("VLC player is unable to perform playback"))
                         case .playing:
                             manager.proxy?.isBuffering.value = false
                             manager.setPlaybackRequestStatus(status: .playing)
+
+                            let tracks = info.subtitleTracks.map { (index: $0.index, title: $0.title) }
+                            manager.playbackItem?.getSubtitleIndexes(subtitleTracks: tracks)
                         case .paused:
                             manager.setPlaybackRequestStatus(status: .paused)
                         }

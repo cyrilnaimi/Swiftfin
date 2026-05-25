@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
@@ -47,21 +47,18 @@ final class EpisodeItemViewModel: ItemViewModel {
 
     private func getSeriesItem() async throws -> BaseItemDto {
 
-        guard let seriesID = item.seriesID else { throw JellyfinAPIError("Expected series ID missing") }
+        guard let seriesID = item.seriesID else { throw ErrorMessage("Expected series ID missing") }
 
-        var parameters = Paths.GetItemsByUserIDParameters()
+        var parameters = Paths.GetItemsParameters()
         parameters.enableUserData = true
         parameters.fields = .MinimumFields
         parameters.ids = [seriesID]
         parameters.limit = 1
 
-        let request = Paths.getItemsByUserID(
-            userID: userSession.user.id,
-            parameters: parameters
-        )
+        let request = Paths.getItems(parameters: parameters)
         let response = try await userSession.client.send(request)
 
-        guard let seriesItem = response.value.items?.first else { throw JellyfinAPIError("Expected series item missing") }
+        guard let seriesItem = response.value.items?.first else { throw ErrorMessage("Expected series item missing") }
 
         return seriesItem
     }

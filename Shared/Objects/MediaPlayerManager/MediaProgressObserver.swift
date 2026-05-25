@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
@@ -111,7 +111,7 @@ class MediaProgressObserver: ViewModel, MediaPlayerObserver {
         #endif
 
         Task {
-            var info = PlaybackStartInfo()
+            var info = PlaybackStateInfo()
             info.audioStreamIndex = item.selectedAudioStreamIndex
             info.itemID = item.baseItem.id
             info.mediaSourceID = item.mediaSource.id
@@ -137,6 +137,7 @@ class MediaProgressObserver: ViewModel, MediaPlayerObserver {
             var info = PlaybackStopInfo()
             info.itemID = item.baseItem.id
             info.mediaSourceID = item.mediaSource.id
+            info.playSessionID = item.playSessionID
             info.positionTicks = seconds?.ticks
             info.sessionID = item.playSessionID
 
@@ -152,7 +153,7 @@ class MediaProgressObserver: ViewModel, MediaPlayerObserver {
         #endif
 
         Task {
-            var info = PlaybackProgressInfo()
+            var info = PlaybackStateInfo()
             info.audioStreamIndex = item.selectedAudioStreamIndex
             info.isPaused = isPaused
             info.itemID = item.baseItem.id

@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Foundation
@@ -11,11 +11,13 @@ import JellyfinAPI
 
 extension DayOfWeek {
 
+    // swiftlint:disable:next hard_coded_display_string
     var displayTitle: String {
-        let newLineRemoved = rawValue.replacingOccurrences(of: "\n", with: "")
+        let newLineRemoved = rawValue.replacingOccurrences(of: "\n", with: String.empty)
 
         /// The enum is in English so validation must be done against a calendar in English
         let englishCalendar = DateFormatter()
+
         englishCalendar.locale = Locale(identifier: "en_US_POSIX")
 
         guard let index = englishCalendar.weekdaySymbols.firstIndex(of: newLineRemoved) else {

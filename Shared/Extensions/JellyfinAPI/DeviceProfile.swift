@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -74,5 +74,44 @@ extension DeviceProfile {
         }
 
         return deviceProfile
+    }
+
+    // MARK: - Playback Capability Queries
+
+    /// Whether any `DirectPlayProfile` allows media with this audio codec in the given container to be played directly.
+    func canPlay(type: DlnaProfileType, audioCodec: String?, container: String?) -> Bool {
+        (directPlayProfiles ?? []).contains { profile in
+            profile.type == type
+                && profileContains(profile: profile.audioCodec, audioCodec)
+                && profileContains(profile: profile.container, container)
+        }
+    }
+
+    /// Whether any `DirectPlayProfile` allows media with this video codec in the given container to be played directly.
+    func canPlay(type: DlnaProfileType, videoCodec: String?, container: String?) -> Bool {
+        (directPlayProfiles ?? []).contains { profile in
+            profile.type == type
+                && profileContains(profile: profile.videoCodec, videoCodec)
+                && profileContains(profile: profile.container, container)
+        }
+    }
+
+    /// Whether any `SubtitleProfile` allows this format to be delivered via the given method.
+    func canPlay(subtitleFormat: String?, method: SubtitleDeliveryMethod) -> Bool {
+        guard let subtitleFormat = subtitleFormat?.lowercased() else { return false }
+        return (subtitleProfiles ?? []).contains { profile in
+            profile.method == method
+                && profile.format?.lowercased() == subtitleFormat
+        }
+    }
+
+    /// Parse & check membership like this is CSV as that's the format we send to the server.
+    private func profileContains(profile: String?, _ candidate: String?) -> Bool {
+        guard let profile else { return true }
+        guard let candidate = candidate?.lowercased() else { return false }
+        return profile
+            .lowercased()
+            .split(separator: ",")
+            .contains { $0.trimmingCharacters(in: .whitespaces) == candidate }
     }
 }

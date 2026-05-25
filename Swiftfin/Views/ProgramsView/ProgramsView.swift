@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import JellyfinAPI
@@ -21,13 +21,6 @@ struct ProgramsView: View {
 
     @StateObject
     private var programsViewModel = ProgramsViewModel()
-
-    private func errorView(with error: some Error) -> some View {
-        ErrorView(error: error)
-            .onRetry {
-                programsViewModel.send(.refresh)
-            }
-    }
 
     @ViewBuilder
     private var liveTVSectionScrollView: some View {
@@ -47,10 +40,8 @@ struct ProgramsView: View {
     // TODO: probably make own pill view
     //       - see if could merge with item view pills
     @ViewBuilder
-    private func liveTVSectionPill(title: String, systemImage: String, onSelect: @escaping () -> Void) -> some View {
-        Button {
-            onSelect()
-        } label: {
+    private func liveTVSectionPill(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             Label(title, systemImage: systemImage)
                 .font(.callout.weight(.semibold))
                 .foregroundColor(.primary)
@@ -70,8 +61,7 @@ struct ProgramsView: View {
                 liveTVSectionScrollView
 
                 if programsViewModel.hasNoResults {
-                    // TODO: probably change to "No Programs"
-                    Text(L10n.noResults)
+                    ContentUnavailableView(L10n.noPrograms.localizedCapitalized, systemImage: "tv")
                 }
 
                 if programsViewModel.recommended.isNotEmpty {
@@ -123,18 +113,21 @@ struct ProgramsView: View {
     }
 
     var body: some View {
-        WrappedView {
+        ZStack {
             switch programsViewModel.state {
             case .content:
                 contentView
             case let .error(error):
-                errorView(with: error)
+                ErrorView(error: error)
             case .initial, .refreshing:
-                DelayedProgressView()
+                ProgressView()
             }
         }
         .navigationTitle(L10n.liveTV)
         .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            programsViewModel.send(.refresh)
+        }
         .onFirstAppear {
             if programsViewModel.state == .initial {
                 programsViewModel.send(.refresh)

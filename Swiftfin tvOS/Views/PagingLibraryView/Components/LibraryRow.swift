@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -17,19 +17,9 @@ extension PagingLibraryView {
 
     struct LibraryRow: View {
 
-        private let item: Element
-        private var action: () -> Void
-        private let posterType: PosterDisplayType
-
-        init(
-            item: Element,
-            posterType: PosterDisplayType,
-            action: @escaping () -> Void
-        ) {
-            self.item = item
-            self.action = action
-            self.posterType = posterType
-        }
+        let item: Element
+        let posterType: PosterDisplayType
+        let action: () -> Void
 
         private func imageSources(from element: Element) -> [ImageSource] {
             switch posterType {
@@ -122,8 +112,9 @@ extension PagingLibraryView {
                 rowLeading
             } content: {
                 rowContent
+            } action: {
+                action()
             }
-            .onSelect(perform: action)
             .focusedValue(\.focusedPoster, AnyPoster(item))
         }
     }

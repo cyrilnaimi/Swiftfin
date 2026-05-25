@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -61,9 +61,9 @@ final class MediaViewModel: ViewModel {
 
         // folders has `type = UserView`, but we manually
         // force it to `folders` for better view handling
-        let supportedUserViews = try await (userViews.value.items ?? [])
+        return try await (userViews.value.items ?? [])
             .coalesced(property: \.collectionType, with: .folders)
-            .intersection(CollectionType.supportedCases, using: \.collectionType)
+            .intersecting(CollectionType.supportedCases, using: \.collectionType)
             .subtracting(excludedLibraryIDs, using: \.id)
             .map { item in
 
@@ -73,8 +73,6 @@ final class MediaViewModel: ViewModel {
 
                 return item
             }
-
-        return supportedUserViews
     }
 
     private func getExcludedLibraries() async throws -> [String] {
@@ -108,18 +106,18 @@ final class MediaViewModel: ViewModel {
             filters = [.isFavorite]
         }
 
-        var parameters = Paths.GetItemsByUserIDParameters()
+        var parameters = Paths.GetItemsParameters()
         parameters.limit = 3
         parameters.isRecursive = true
         parameters.parentID = parentID
-        parameters.includeItemTypes = [.movie, .series, .boxSet]
+        parameters.includeItemTypes = BaseItemKind.supportedCases
         parameters.filters = filters
-        parameters.sortBy = [ItemSortBy.random.rawValue]
+        parameters.sortBy = [ItemSortBy.random]
 
-        let request = Paths.getItemsByUserID(userID: userSession.user.id, parameters: parameters)
+        let request = Paths.getItems(parameters: parameters)
         let response = try await userSession.client.send(request)
 
         return (response.value.items ?? [])
-            .map { $0.imageSource(.backdrop, maxWidth: 200) }
+            .flatMap { $0.landscapeImageSources(maxWidth: 200) }
     }
 }

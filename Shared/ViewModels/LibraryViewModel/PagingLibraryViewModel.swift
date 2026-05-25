@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
@@ -67,6 +67,7 @@ protocol HasTotalCount: AnyObject {
 
 extension PagingLibraryViewModel: HasTotalCount {}
 
+@MainActor
 class PagingLibraryViewModel<Element: Poster>: ViewModel, Eventful, Stateful {
 
     // MARK: Event
@@ -78,7 +79,7 @@ class PagingLibraryViewModel<Element: Poster>: ViewModel, Eventful, Stateful {
     // MARK: Action
 
     enum Action: Equatable {
-        case error(JellyfinAPIError)
+        case error(ErrorMessage)
         case refresh
         case getNextPage
         case getRandomItem
@@ -94,7 +95,7 @@ class PagingLibraryViewModel<Element: Poster>: ViewModel, Eventful, Stateful {
 
     enum State: Hashable {
         case content
-        case error(JellyfinAPIError)
+        case error(ErrorMessage)
         case initial
         case refreshing
     }
@@ -269,7 +270,7 @@ class PagingLibraryViewModel<Element: Poster>: ViewModel, Eventful, Stateful {
             pagingTask?.cancel()
             randomItemTask?.cancel()
 
-            filterViewModel?.send(.getQueryFilters)
+            filterViewModel?.getQueryFilters()
 
             pagingTask = Task { [weak self] in
                 guard let self else { return }

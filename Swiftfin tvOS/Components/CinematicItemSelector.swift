@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
@@ -27,7 +27,7 @@ struct CinematicItemSelector<Item: Poster>: View {
     private var topContent: (Item) -> any View
     private var itemContent: (Item) -> any View
     private var trailingContent: () -> any View
-    private var onSelect: (Item) -> Void
+    private let action: (Item) -> Void
 
     let items: [Item]
 
@@ -45,7 +45,7 @@ struct CinematicItemSelector<Item: Poster>: View {
             PosterHStack(
                 type: .landscape,
                 items: items,
-                action: onSelect,
+                action: action,
                 label: itemContent
             )
             .frame(height: 400)
@@ -82,12 +82,12 @@ struct CinematicItemSelector<Item: Poster>: View {
 
 extension CinematicItemSelector {
 
-    init(items: [Item]) {
+    init(items: [Item], action: @escaping (Item) -> Void = { _ in }) {
         self.init(
             topContent: { _ in EmptyView() },
             itemContent: { _ in EmptyView() },
             trailingContent: { EmptyView() },
-            onSelect: { _ in },
+            action: action,
             items: items
         )
     }
@@ -103,11 +103,7 @@ extension CinematicItemSelector {
         copy(modifying: \.itemContent, with: content)
     }
 
-    func trailingContent<T: View>(@ViewBuilder _ content: @escaping () -> T) -> Self {
+    func trailingContent(@ViewBuilder _ content: @escaping () -> some View) -> Self {
         copy(modifying: \.trailingContent, with: content)
-    }
-
-    func onSelect(_ action: @escaping (Item) -> Void) -> Self {
-        copy(modifying: \.onSelect, with: action)
     }
 }

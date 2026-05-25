@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Combine
@@ -28,19 +28,15 @@ class ToastProxy: ObservableObject {
     @Published
     private(set) var systemName: String? = nil
     @Published
-    private(set) var title: Text = Text("")
-//    @Published
-//    private(set) var messageID: String = ""
+    private(set) var title: Text = Text(String.empty)
 
     private let pokeTimer = PokeIntervalTimer(defaultInterval: 2)
     private var pokeCancellable: AnyCancellable?
 
     init() {
         pokeCancellable = pokeTimer
-            .sink {
-                withAnimation {
-                    self.isPresenting = false
-                }
+            .sink { [weak self] in
+                self?.dismiss()
             }
     }
 
@@ -56,14 +52,16 @@ class ToastProxy: ObservableObject {
     }
 
     private func poke(equalsPrevious: Bool) {
-//        if equalsPrevious {
-//            messageID = UUID().uuidString
-//        }
-
-        withAnimation(.spring) {
+        withAnimation(.easeInOut(duration: 0.2)) {
             isPresenting = true
         }
 
         pokeTimer.poke()
+    }
+
+    func dismiss() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isPresenting = false
+        }
     }
 }

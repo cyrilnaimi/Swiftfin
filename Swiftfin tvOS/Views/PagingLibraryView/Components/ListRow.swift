@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import SwiftUI
@@ -18,7 +18,7 @@ struct ListRow<Leading: View, Content: View>: View {
 
     private let leading: Leading
     private let content: Content
-    private var action: () -> Void
+    private let action: () -> Void
     private var insets: EdgeInsets
     private var isSeparatorVisible: Bool
 
@@ -60,9 +60,23 @@ extension ListRow {
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.init(
+            insets: insets,
+            leading: leading,
+            content: content,
+            action: {}
+        )
+    }
+
+    init(
+        insets: EdgeInsets = .zero,
+        @ViewBuilder leading: @escaping () -> Leading,
+        @ViewBuilder content: @escaping () -> Content,
+        action: @escaping () -> Void
+    ) {
+        self.init(
             leading: leading(),
             content: content(),
-            action: {},
+            action: action,
             insets: insets,
             isSeparatorVisible: true
         )
@@ -70,9 +84,5 @@ extension ListRow {
 
     func isSeparatorVisible(_ isVisible: Bool) -> Self {
         copy(modifying: \.isSeparatorVisible, with: isVisible)
-    }
-
-    func onSelect(perform action: @escaping () -> Void) -> Self {
-        copy(modifying: \.action, with: action)
     }
 }

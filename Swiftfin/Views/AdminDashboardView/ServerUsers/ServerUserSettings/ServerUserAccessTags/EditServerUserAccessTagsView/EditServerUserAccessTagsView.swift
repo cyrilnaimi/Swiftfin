@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -17,30 +17,18 @@ struct EditServerUserAccessTagsView: View {
         let access: Bool
     }
 
-    // MARK: - Observed, State, & Environment Objects
-
     @Router
     private var router
 
-    @StateObject
-    private var viewModel: ServerUserAdminViewModel
-
-    // MARK: - Dialog States
-
     @State
     private var isPresentingDeleteConfirmation = false
-
-    // MARK: - Editing States
-
     @State
     private var selectedTags: Set<TagWithAccess> = []
     @State
     private var isEditing: Bool = false
 
-    // MARK: - Error State
-
-    @State
-    private var error: Error?
+    @StateObject
+    private var viewModel: ServerUserAdminViewModel
 
     private var hasTags: Bool {
         viewModel.user.policy?.blockedTags?.isEmpty == true &&
@@ -59,26 +47,28 @@ struct EditServerUserAccessTagsView: View {
             .map { TagWithAccess(tag: $0, access: false) } ?? []
     }
 
-    // MARK: - Initializera
-
     init(viewModel: ServerUserAdminViewModel) {
         self._viewModel = StateObject(wrappedValue: viewModel)
     }
-
-    // MARK: - Body
 
     var body: some View {
         ZStack {
             switch viewModel.state {
             case .initial, .content:
                 contentView
-            case let .error(error):
-                errorView(with: error)
+            case .error:
+                viewModel.error.map {
+                    ErrorView(error: $0)
+                }
             }
         }
+        .backport
+        .toolbarTitleDisplayMode(.inline)
         .navigationTitle(L10n.accessTags.localizedCapitalized)
-        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isEditing)
+        .refreshable {
+            viewModel.refresh()
+        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 if isEditing {
@@ -107,7 +97,7 @@ struct EditServerUserAccessTagsView: View {
             }
         }
         .navigationBarMenuButton(
-            isLoading: viewModel.backgroundStates.contains(.refreshing),
+            isLoading: viewModel.background.is(.refreshing) || viewModel.background.is(.updating),
             isHidden: isEditing || hasTags
         ) {
             Button(L10n.add, systemImage: "plus") {
@@ -116,14 +106,6 @@ struct EditServerUserAccessTagsView: View {
 
             Button(L10n.edit, systemImage: "checkmark.circle") {
                 isEditing = true
-            }
-        }
-        .onReceive(viewModel.events) { event in
-            switch event {
-            case let .error(eventError):
-                error = eventError
-            default:
-                break
             }
         }
         .confirmationDialog(
@@ -135,17 +117,7 @@ struct EditServerUserAccessTagsView: View {
         } message: {
             Text(L10n.deleteSelectedConfirmation)
         }
-        .errorMessage($error)
-    }
-
-    // MARK: - ErrorView
-
-    @ViewBuilder
-    private func errorView(with error: some Error) -> some View {
-        ErrorView(error: error)
-            .onRetry {
-                viewModel.send(.refresh)
-            }
+        .errorMessage($viewModel.error)
     }
 
     @ViewBuilder
@@ -161,8 +133,6 @@ struct EditServerUserAccessTagsView: View {
         .isEditing(isEditing)
         .isSelected(selectedTags.contains(tag))
     }
-
-    // MARK: - Content View
 
     @ViewBuilder
     private var contentView: some View {
@@ -205,8 +175,6 @@ struct EditServerUserAccessTagsView: View {
         }
     }
 
-    // MARK: - Select/Remove All Button
-
     @ViewBuilder
     private var navigationBarSelectView: some View {
         let isAllSelected = selectedTags.count == blockedTags.count + allowedTags.count
@@ -217,8 +185,6 @@ struct EditServerUserAccessTagsView: View {
         .buttonStyle(.toolbarPill)
         .disabled(!isEditing)
     }
-
-    // MARK: - Delete Selected Confirmation Actions
 
     @ViewBuilder
     private var deleteSelectedConfirmationActions: some View {
@@ -239,7 +205,7 @@ struct EditServerUserAccessTagsView: View {
                 }
             }
 
-            viewModel.send(.updatePolicy(tempPolicy))
+            viewModel.updatePolicy(tempPolicy)
             selectedTags.removeAll()
             isEditing = false
         }

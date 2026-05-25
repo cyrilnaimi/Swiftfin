@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -46,18 +46,18 @@ extension DownloadTaskView {
                     // TODO: Break into subview
                     switch downloadTask.state {
                     case .ready, .cancelled:
-                        PrimaryButton(title: "Download")
-                            .onSelect {
-                                downloadManager.download(task: downloadTask)
-                            }
-                            .frame(maxWidth: 300)
-                            .frame(height: 50)
+                        Button(L10n.download) {
+                            downloadManager.download(task: downloadTask)
+                        }
+                        .frame(maxWidth: 300)
+                        .frame(height: 50)
                     case let .downloading(progress):
                         HStack {
 //                            CircularProgressView(progress: progress)
 //                                .buttonStyle(.plain)
 //                                .frame(width: 30, height: 30)
 
+                            // swiftlint:disable:next hard_coded_display_string
                             Text("\(Int(progress * 100))%")
                                 .foregroundColor(.secondary)
 
@@ -73,35 +73,28 @@ extension DownloadTaskView {
                         .padding(.horizontal)
                     case let .error(error):
                         VStack {
-                            PrimaryButton(title: L10n.retry)
-                                .onSelect {
-                                    downloadManager.download(task: downloadTask)
-                                }
-                                .frame(maxWidth: 300)
-                                .frame(height: 50)
-
-                            Text("Error: \(error.localizedDescription)")
-                                .padding(.horizontal)
-                        }
-                    case .complete:
-                        PrimaryButton(title: L10n.play)
-                            .onSelect {
-                                if Defaults[.VideoPlayer.videoPlayerType] == .swiftfin {
-                                    router.dismiss()
-//                                    router.route(to: .videoPlayer(manager: DownloadVideoPlayerManager(downloadTask: downloadTask)))
-                                } else {
-                                    isPresentingVideoPlayerTypeError = true
-                                }
+                            Button(L10n.retry) {
+                                downloadManager.download(task: downloadTask)
                             }
                             .frame(maxWidth: 300)
                             .frame(height: 50)
+
+                            Text(error.localizedDescription)
+                                .padding(.horizontal)
+                        }
+                    case .complete:
+                        Button(L10n.play) {
+                            if Defaults[.VideoPlayer.videoPlayerType] == .swiftfin {
+                                router.dismiss()
+//                                    router.route(to: .videoPlayer(manager: DownloadVideoPlayerManager(downloadTask: downloadTask)))
+                            } else {
+                                isPresentingVideoPlayerTypeError = true
+                            }
+                        }
+                        .frame(maxWidth: 300)
+                        .frame(height: 50)
                     }
                 }
-
-//                Text("Media Info")
-//                    .font(.title2)
-//                    .fontWeight(.semibold)
-//                    .padding(.horizontal)
             }
             .alert(
                 L10n.error,
@@ -113,7 +106,7 @@ extension DownloadTaskView {
                     Text(L10n.dismiss)
                 }
             } message: {
-                Text("Downloaded items are only playable through the Swiftfin video player.")
+                Text(L10n.downloadedPlayerWarning)
             }
         }
     }

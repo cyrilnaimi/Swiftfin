@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Foundation
@@ -14,9 +14,6 @@ extension ImageInfo: @retroactive Identifiable {
     public var id: Int {
         hashValue
     }
-}
-
-extension ImageInfo {
 
     func itemImageSource(itemID: String, client: JellyfinClient) -> ImageSource {
         let parameters = Paths.GetItemImageParameters(
@@ -29,7 +26,7 @@ extension ImageInfo {
             parameters: parameters
         )
 
-        let itemImageURL = client.fullURL(with: request)
+        let itemImageURL = client.url(with: request)
 
         return ImageSource(url: itemImageURL)
     }

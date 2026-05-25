@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 // TODO: add audio/subtitle offset
@@ -13,7 +13,9 @@ enum VideoPlayerActionButton: String, CaseIterable, Displayable, Equatable, Iden
     case aspectFill
     case audio
     case autoPlay
+    #if os(iOS)
     case gestureLock
+    #endif
     case playbackSpeed
 //    case playbackQuality
     case playNextItem
@@ -23,23 +25,25 @@ enum VideoPlayerActionButton: String, CaseIterable, Displayable, Equatable, Iden
     var displayTitle: String {
         switch self {
         case .aspectFill:
-            return L10n.aspectFill
+            L10n.aspectFill
         case .audio:
-            return L10n.audio
+            L10n.audio
         case .autoPlay:
-            return L10n.autoPlay
+            L10n.autoPlay
+        #if os(iOS)
         case .gestureLock:
-            return L10n.gestureLock
+            L10n.gestureLock
+        #endif
         case .playbackSpeed:
-            return L10n.playbackSpeed
+            L10n.playbackSpeed
 //        case .playbackQuality:
 //            return L10n.playbackQuality
         case .playNextItem:
-            return L10n.playNextItem
+            L10n.playNextItem
         case .playPreviousItem:
-            return L10n.playPreviousItem
+            L10n.playPreviousItem
         case .subtitles:
-            return L10n.subtitles
+            L10n.subtitles
         }
     }
 
@@ -52,7 +56,9 @@ enum VideoPlayerActionButton: String, CaseIterable, Displayable, Equatable, Iden
         case .aspectFill: "arrow.up.left.and.arrow.down.right"
         case .audio: "speaker.wave.2.fill"
         case .autoPlay: "play.circle.fill"
+        #if os(iOS)
         case .gestureLock: "lock.circle.fill"
+        #endif
         case .playbackSpeed: "speedometer"
 //        case .playbackQuality: "tv.circle.fill"
         case .playNextItem: "forward.end.circle.fill"
@@ -66,7 +72,9 @@ enum VideoPlayerActionButton: String, CaseIterable, Displayable, Equatable, Iden
         case .aspectFill: "arrow.down.right.and.arrow.up.left"
         case .audio: "speaker.wave.2"
         case .autoPlay: "stop.circle"
+        #if os(iOS)
         case .gestureLock: "lock.open.fill"
+        #endif
         case .subtitles: "captions.bubble"
         default:
             systemImage
