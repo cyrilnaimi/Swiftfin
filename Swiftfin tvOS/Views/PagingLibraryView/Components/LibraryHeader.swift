@@ -3,7 +3,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2025 Jellyfin & Jellyfin Contributors
+// Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
 import Defaults
@@ -28,7 +28,7 @@ struct LibraryHeader<ViewModel: ObservableObject & AnyObject>: View {
     }
 
     private var hasActiveFilters: Bool {
-        filterViewModel.currentFilters.hasFilters
+        filterViewModel.currentFilters.isNotEmpty
     }
 
     @Router
@@ -63,7 +63,7 @@ struct LibraryHeader<ViewModel: ObservableObject & AnyObject>: View {
                             .frame(maxWidth: 600)
                     }
 
-                    Text(L10n.by.lowercased())
+                    Text("by")
                         .foregroundStyle(.secondary)
 
                     FilterPillButton(isActive: false) {
@@ -74,7 +74,7 @@ struct LibraryHeader<ViewModel: ObservableObject & AnyObject>: View {
 
                     if hasActiveFilters {
                         FilterPillButton(isActive: true) {
-                            filterViewModel.send(.reset())
+                            filterViewModel.reset(filterType: nil)
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "xmark.circle")
@@ -154,7 +154,8 @@ private struct FilterPillButton<Label: View>: View {
 
     let isActive: Bool
     let action: () -> Void
-    @ViewBuilder let label: () -> Label
+    @ViewBuilder
+    let label: () -> Label
 
     var body: some View {
         Button(action: action) {

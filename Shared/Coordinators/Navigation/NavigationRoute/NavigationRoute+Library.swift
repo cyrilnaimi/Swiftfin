@@ -23,17 +23,6 @@ extension NavigationRoute {
         }
     }
 
-    #if os(tvOS)
-    static func filter(type: ItemFilterType, viewModel: FilterViewModel) -> NavigationRoute {
-        NavigationRoute(
-            id: "filter",
-            style: .sheet
-        ) {
-            FilterView(viewModel: viewModel, type: type)
-        }
-    }
-    #endif
-
     static func library(
         viewModel: PagingLibraryViewModel<some Poster>
     ) -> NavigationRoute {
