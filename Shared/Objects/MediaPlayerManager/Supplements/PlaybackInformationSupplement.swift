@@ -220,8 +220,6 @@ extension PlaybackInformationSupplement {
             .labeledContentStyle(.playbackInfo)
             .padding(.leading, safeAreaInsets.leading)
             .padding(.trailing, safeAreaInsets.trailing)
-            .edgePadding(.horizontal)
-            .edgePadding(.bottom)
         }
 
         @ViewBuilder
@@ -237,6 +235,7 @@ extension PlaybackInformationSupplement {
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .scrollIndicators(.hidden)
+            .edgePadding()
         }
 
         @ViewBuilder
@@ -258,10 +257,13 @@ extension PlaybackInformationSupplement {
                 }
             }
             .scrollIndicators(.hidden)
+            .edgePadding()
         }
 
         var tvOSView: some View {
             regularView
+                .labeledContentStyle(.playbackInfo)
+                .focusSection()
         }
     }
 }

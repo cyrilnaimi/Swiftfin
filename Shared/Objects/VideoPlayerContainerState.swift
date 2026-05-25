@@ -118,10 +118,9 @@ class VideoPlayerContainerState: ObservableObject {
     }
 
     @Published
-    var supplementOffset: CGFloat = 0.0
-
-    @Published
     var centerOffset: CGFloat = 0.0
+    @Published
+    var isProgressBarFocused: Bool = false
 
     var originalPlaybackRate: Float?
 
@@ -137,6 +136,33 @@ class VideoPlayerContainerState: ObservableObject {
     var panHandlingAction: (any _PanHandlingAction)?
     var didSwipe: Bool = false
     var lastTapLocation: CGPoint?
+    #endif
+
+    #if os(tvOS)
+    @Published
+    var isPresentingCloseConfirmation: Bool = false
+
+    var hasEnteredScrubMode: Bool = false
+    var scrubOriginSeconds: Duration?
+
+    func commitScrub() {
+        guard hasEnteredScrubMode else { return }
+        manager?.proxy?.setSeconds(scrubbedSeconds.value)
+        manager?.setPlaybackRequestStatus(status: .playing)
+        isScrubbing = false
+        hasEnteredScrubMode = false
+        scrubOriginSeconds = nil
+    }
+
+    func cancelScrub() {
+        guard hasEnteredScrubMode else { return }
+        if let manager {
+            scrubbedSeconds.value = manager.seconds
+        }
+        isScrubbing = false
+        hasEnteredScrubMode = false
+        scrubOriginSeconds = nil
+    }
     #endif
 
     private var jumpProgressCancellable: AnyCancellable?
