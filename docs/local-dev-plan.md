@@ -111,8 +111,8 @@ Expected conflicts (from earlier abort):
 | P4.1 | ✅ done | `35321724` | Post-merge audit fix: re-added missing `rememberFiltering` Toggle in `CustomizeSettingsView`, restored `.isPlayed`/`.isUnplayed` mutual-exclusion in `ItemFilterType.traits` setter. |
 | P4.2 | ✅ done | `cd550694` | UI audit fix: filter pills now use `Color.secondarySystemFill` + `.card` (drops the brightness focus hack), wire `.tint(accentColor)` so active pills pick up the user accent, use `.firstTextBaseline` alignment, fix `safeAreaPadding`→`padding` bug on the inset host. |
 | P4.3 | ✅ done | `50971ebb` | Post-merge build-error fixes: removed duplicate `NavigationRoute.filter(...)` / `navigationBarCloseButton(...)` / `FilterView.swift`, `hasFilters` → `isNotEmpty`, `.send(.reset())` → `.reset(filterType: nil)`, added missing `rememberFiltering` / `rememberFilteringFooter` keys to `en.lproj/Localizable.strings`. **`xcodebuild` BUILD SUCCEEDED** at this commit. |
-| P4.4 | 🟡 in progress | — | Second-audit fixes: restore the *real* `navigationBarCloseButton` impl on tvOS (the build-fix incorrectly removed it and left only the no-op stub, breaking Close on every tvOS sheet — filter, sign-in, settings, etc.); re-add `"by"` localization key (had been hardcoded as a literal). |
-| P5 | 🟡 in progress | — | `.app` installed on sim `68CB155B-71F7-4326-8131-B3621A95BFCF` (Apple TV 4K 3rd gen, tvOS 26.2). Pending: re-install after P4.4, launch, sign in with `lgtv/lgtv`, verify filter pills, verify rememberFiltering persists across relaunch, open new tvOS player. |
+| P4.4 | ✅ done | `23252324` | Second-audit fixes: restored the *real* `navigationBarCloseButton` impl on tvOS (`50971ebb` incorrectly removed it and left only the no-op stub, breaking Close on every tvOS sheet); re-added `"by"` localization key (had been hardcoded as a literal in `cd550694`). **`xcodebuild` BUILD SUCCEEDED** at this commit. |
+| P5 | 🟡 paused | — | Last verified state: `xcodebuild ... Debug build` at HEAD `23252324` → BUILD SUCCEEDED. `.app` installed on sim `68CB155B-71F7-4326-8131-B3621A95BFCF` (Apple TV 4K 3rd gen, tvOS 26.2) at the prior `50971ebb` build via `xcrun simctl install`. **Not yet reinstalled at `23252324` and not launched.** Pending: see "Next session" below. |
 | P6 | ⚪ pending | — | After P5 passes: add "Resolution" section to `tvos-simulator-login-report.md` pointing at `167628b7`; note upstream issues #163/#776/#809/#930 likely closed. |
 
 Legend: ✅ done · 🟡 in progress · 🔴 blocked · ⚪ pending
@@ -164,3 +164,65 @@ Run via a multi-agent code-review pass on `f122abb9..HEAD`. Findings grouped:
 - **Rotate the leaked API key on the Jellyfin server** ✅ done by user. The key was `b127840f…`; it appeared in a working-tree patch only and will not enter any commit on this branch.
 - **Upstream PR**: if the team wants, the Phase 1 commit (`167628b7`, keychain fix) is a strong candidate for a small focused upstream PR — high value, low risk, likely closes multiple long-standing tvOS issues.
 - **Outstanding `Localizable.strings` keys**: ~26 #1770-only keys are not in the merged en.lproj. They have runtime fallbacks via `Strings.swift`, so the UI works in English but other locales show key names. Not blocking; add as a follow-up if you want clean translations.
+
+---
+
+## Next session — pick-up checklist
+
+State at pause (2026-05-25 evening):
+
+- Current branch: `local/appletv-dev`, clean working tree (no uncommitted changes)
+- Last commit: `23252324 fix(tvOS): restore navigationBarCloseButton + L10n.by (second audit)`
+- Last build: ✅ `xcodebuild -scheme "Swiftfin tvOS" -destination "platform=tvOS Simulator,id=68CB155B-71F7-4326-8131-B3621A95BFCF" -configuration Debug build` → **BUILD SUCCEEDED**
+- Sim has a stale install from commit `50971ebb` — reinstall before launching.
+
+Commit graph since `pr-1770-filters`:
+
+```
+23252324 fix(tvOS): restore navigationBarCloseButton + L10n.by (second audit)   ← HEAD
+50971ebb fix(tvOS): resolve post-merge build errors
+cd550694 fix(tvOS): library filter pills — accent color, readability, focus fixes
+35321724 fix: restore #1770 filtering features lost in appletv-stack merge
+f122abb9 Merge appletv-stack (#1902 tvOS Player + #1882 Index/Track Fixes)
+b628bfea chore(local): rename to 'Swiftfin Local' and use badged icon
+f5aeb5b6 chore: bump CollectionVGrid to e5b869c
+4857ef41 feat(tvOS): style library filter pills like Settings list rows
+0851fff3 fix(tvOS): replace unsupported .header modifier with safeAreaInset
+557523f8 fix: allow Release builds — make debugBackground unconditional
+167628b7 fix(tvOS): add CODE_SIGN_ENTITLEMENTS so keychain works on simulator
+```
+
+### To resume P5 (build + sign-in verification on sim)
+
+1. Reinstall the freshly-built `.app` on the booted Apple TV sim:
+   ```bash
+   APP="/Users/cyrilnaimi/Library/Developer/Xcode/DerivedData/Swiftfin-gimasjlzhpdqaxaswqzmhlnmznuj/Build/Products/Debug-appletvsimulator/Swiftfin tvOS.app"
+   xcrun simctl install 68CB155B-71F7-4326-8131-B3621A95BFCF "$APP"
+   xcrun simctl launch 68CB155B-71F7-4326-8131-B3621A95BFCF org.jellyfin.swiftfin.local
+   ```
+   (Bundle id is `.local` per `XcodeConfig/DevelopmentTeam.xcconfig`.)
+2. Sign in with `lgtv` / `lgtv`. Confirm token persists across a kill+relaunch (validates the Phase 1 entitlements fix).
+3. Open a library → exercise the filter pills:
+   - Tap a Filter pill, set a Genre. Confirm the pill turns accent-purple (P4.2).
+   - Tap Reset. Confirm pill goes back to grey.
+   - Set a filter, enable **Settings → Customize → Library → "Remember filtering"** (P4.1 added this toggle).
+   - Kill the app and relaunch. Confirm the filter survived.
+4. Verify `.isPlayed` + `.isUnplayed` mutual exclusion: open the Traits filter, tap both — only the most recent should remain selected (P4.1).
+5. Open an episode → confirm the new tvOS player from #1902 launches (don't need to play to completion).
+6. Open Settings → confirm the Close button works (validates the P4.4 BLOCKER fix).
+
+### If the build needs a fresh start
+
+```bash
+git checkout local/appletv-dev
+git status   # should be clean
+xcodebuild -project Swiftfin.xcodeproj -scheme "Swiftfin tvOS" \
+  -destination "platform=tvOS Simulator,id=68CB155B-71F7-4326-8131-B3621A95BFCF" \
+  -configuration Debug build
+```
+
+### Known follow-ups (non-blocking)
+
+- ~26 missing localization keys (see above) for non-English locales.
+- The tvOS-specific FilterView UX (icon Reset, 50%-width centered Form) was lost in the merge; the unified Shared FilterView replaces it. Re-evaluate visually in the sim — may want to add tvOS-specific tweaks back.
+- `docs/local-dev-plan.md` and `docs/tvos-simulator-login-report.md` are CLAUDE working notes committed to the branch. If we ever PR back upstream, move them out of the diff first.
