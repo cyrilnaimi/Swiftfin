@@ -20,9 +20,15 @@ struct LibraryHeader<ViewModel: ObservableObject & AnyObject>: View {
     @ObservedObject
     var filterViewModel: FilterViewModel
 
+    @Default(.accentColor)
+    private var accentColor
+
     private var totalCount: Int {
-        // Access totalCount - PagingLibraryViewModel conforms to HasTotalCount
         (viewModel as? HasTotalCount)?.totalCount ?? 0
+    }
+
+    private var hasActiveFilters: Bool {
+        filterViewModel.currentFilters.hasFilters
     }
 
     @Router
@@ -32,45 +38,48 @@ struct LibraryHeader<ViewModel: ObservableObject & AnyObject>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                HStack(alignment: .center, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(title)
                         .font(.title2)
                         .fontWeight(.semibold)
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
 
                     Text("(\(totalCount) \(L10n.items.lowercased()))")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 7)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 HStack(spacing: 30) {
 
-                    FilterPillButton {
+                    FilterPillButton(isActive: hasActiveFilters) {
                         router.route(to: .filter(type: ItemFilterType.traits, viewModel: filterViewModel))
                     } label: {
                         Text(filterButtonTitle)
                             .lineLimit(1)
                             .truncationMode(.tail)
+                            .frame(maxWidth: 600)
                     }
 
                     Text(L10n.by.lowercased())
+                        .foregroundStyle(.secondary)
 
-                    FilterPillButton {
+                    FilterPillButton(isActive: false) {
                         router.route(to: .filter(type: ItemFilterType.sortBy, viewModel: filterViewModel))
                     } label: {
                         Text(sortButtonTitle)
                     }
 
-                    if filterViewModel.currentFilters.hasFilters {
-                        FilterPillButton {
+                    if hasActiveFilters {
+                        FilterPillButton(isActive: true) {
                             filterViewModel.send(.reset())
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "xmark.circle")
+                                    .imageScale(.medium)
+                                    .symbolRenderingMode(.hierarchical)
                                 Text(L10n.reset)
                             }
                         }
@@ -79,6 +88,7 @@ struct LibraryHeader<ViewModel: ObservableObject & AnyObject>: View {
             }
             .frame(maxWidth: .infinity)
             .padding(EdgeInsets(top: 10, leading: 60, bottom: 10, trailing: 60))
+            .tint(accentColor)
             .focusSection()
 
             if totalCount == 0 {
@@ -134,40 +144,29 @@ struct LibraryHeader<ViewModel: ObservableObject & AnyObject>: View {
     }
 }
 
-/// Matches the look of `ListRowButton` from Settings: grey rounded-rect fill,
-/// focus brightens, `.buttonStyle(.card)` for native tvOS focus behavior.
-/// Unlike `ListRowButton`, accepts arbitrary label content (so callers can use
-/// HStack { Image; Text } for icon-bearing pills like Reset).
+/// Pill-shaped filter / sort / reset button used in `LibraryHeader`.
+///
+/// Uses `.buttonStyle(.card)` for native tvOS focus behavior (scale + lift on
+/// focus). Unfocused state shows a flat `secondarySystemFill` background so the
+/// pill is visible against any library backdrop. When `isActive == true` the
+/// pill tints to the inherited accent color to signal "has selected value".
 private struct FilterPillButton<Label: View>: View {
 
-    @FocusState
-    private var isFocused: Bool
-
-    private let action: () -> Void
-    private let label: () -> Label
-
-    init(action: @escaping () -> Void, @ViewBuilder label: @escaping () -> Label) {
-        self.action = action
-        self.label = label
-    }
+    let isActive: Bool
+    let action: () -> Void
+    @ViewBuilder let label: () -> Label
 
     var body: some View {
         Button(action: action) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(HierarchicalShapeStyle.secondary)
-                    .brightness(isFocused ? 0.25 : 0)
-
-                label()
-                    .foregroundStyle(HierarchicalShapeStyle.primary)
-                    .font(.body.weight(.bold))
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 8)
-            }
+            label()
+                .font(.body.weight(.semibold))
+                .foregroundStyle(isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(minWidth: 80)
+                .background(Color.secondarySystemFill)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.card)
-        .fixedSize()
-        .frame(maxHeight: 75)
-        .focused($isFocused)
     }
 }

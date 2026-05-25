@@ -255,8 +255,8 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
         .scrollIndicators(.hidden)
         // `.header` modifier is not in the upstream CollectionVGrid version
         // this project depends on, so the title/filter header is attached via
-        // `safeAreaInset` instead. Pad the top so the header doesn't tuck
-        // under the tvOS top nav.
+        // `safeAreaInset` instead. Pad the top of the header itself so it
+        // clears the tvOS top nav instead of tucking under it.
         .safeAreaInset(edge: .top, spacing: 0) {
             if let title = viewModel.parent?.displayTitle, title.isNotEmpty,
                let filterViewModel = viewModel.filterViewModel, !enabledDrawerFilters.isEmpty
@@ -266,7 +266,7 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
                     viewModel: viewModel,
                     filterViewModel: filterViewModel
                 )
-                .safeAreaPadding(.top, 150)
+                .padding(.top, 150)
             }
         }
     }
