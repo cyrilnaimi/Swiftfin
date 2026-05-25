@@ -48,6 +48,8 @@ struct CustomizeSettingsView: View {
     private var rememberLibraryLayout
     @Default(.Customization.Library.rememberSort)
     private var rememberLibrarySort
+    @Default(.Customization.Library.rememberFiltering)
+    private var rememberLibraryFiltering
 
     // MARK: - Poster Defaults
 
@@ -261,6 +263,8 @@ struct CustomizeSettingsView: View {
             Toggle(L10n.rememberLayout, isOn: $rememberLibraryLayout)
 
             Toggle(L10n.rememberSorting, isOn: $rememberLibrarySort)
+
+            Toggle(L10n.rememberFiltering, isOn: $rememberLibraryFiltering)
         }
     }
 
