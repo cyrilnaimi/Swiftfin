@@ -63,7 +63,7 @@ struct LibraryHeader<ViewModel: ObservableObject & AnyObject>: View {
                             .frame(maxWidth: 600)
                     }
 
-                    Text("by")
+                    Text(L10n.by.lowercased())
                         .foregroundStyle(.secondary)
 
                     FilterPillButton(isActive: false) {

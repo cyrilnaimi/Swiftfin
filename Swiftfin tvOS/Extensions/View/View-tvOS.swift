@@ -18,13 +18,18 @@ extension View {
         self
     }
 
-    /// - Important: This does nothing on tvOS.
-    @ViewBuilder
     func navigationBarCloseButton(
         disabled: Bool = false,
         _ action: @escaping () -> Void
     ) -> some View {
-        self
+        toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(L10n.close) {
+                    action()
+                }
+                .disabled(disabled)
+            }
+        }
     }
 
     /// - Important: This does nothing on tvOS.

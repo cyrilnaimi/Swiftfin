@@ -101,21 +101,66 @@ Expected conflicts (from earlier abort):
 
 (Updated as work proceeds. Tasks are also tracked via the harness's Task tool — see `TaskList` for live status.)
 
-| Phase | Status | Commit (if applicable) | Notes |
+| Phase | Status | Commit | Notes |
 |---|---|---|---|
-| P0 | 🟡 in progress | — | Backed up 8 patches, ready to reset working tree |
-| P1 | ⚪ pending | — | — |
-| P2 | ⚪ pending | — | — |
-| P3 | ⚪ pending | — | — |
-| P4 | ⚪ pending | — | — |
-| P5 | ⚪ pending | — | — |
-| P6 | ⚪ pending | — | — |
+| P0 | ✅ done | — | 8 patches backed up to `/tmp/swiftfin-local-patches/`; 800-file noise discarded via `git checkout`; branch `local/appletv-dev` created from `pr-1770-filters`. |
+| P1 | ✅ done | `167628b7` | Added `Swiftfin tvOS/Resources/Swiftfin tvOS.entitlements` with `keychain-access-groups`; wired `CODE_SIGN_ENTITLEMENTS` for Debug + Release. UserState.swift hack not restored (kept original `assertionFailure` form). |
+| P2 | ✅ done | `557523f8`, `0851fff3`, `4857ef41`, `f5aeb5b6` | Four focused commits: debugBackground unconditional / `.header` → `safeAreaInset` / FilterPillButton style / CollectionVGrid bump to `e5b869c`. |
+| P3 | ✅ done | `b628bfea` | `CFBundleDisplayName = "Swiftfin Local"` + `App Icon Local.brandassets` (28 files). DevelopmentTeam.xcconfig left gitignored. |
+| P4 | ✅ done | `f122abb9` | Merged `appletv-stack` (#1902 + #1882). Conflicts resolved per the table below. **FilterViewModel.swift taken `--theirs`** because the new macro-based architecture is incompatible with the old switch-based one — see "Post-merge audit" section. |
+| P4.1 | ✅ done | `35321724` | Post-merge audit fix: re-added missing `rememberFiltering` Toggle in `CustomizeSettingsView`, restored `.isPlayed`/`.isUnplayed` mutual-exclusion in `ItemFilterType.traits` setter. |
+| P4.2 | ✅ done | `cd550694` | UI audit fix: filter pills now use `Color.secondarySystemFill` + `.card` (drops the brightness focus hack), wire `.tint(accentColor)` so active pills pick up the user accent, use `.firstTextBaseline` alignment, fix `safeAreaPadding`→`padding` bug on the inset host. |
+| P4.3 | ✅ done | `50971ebb` | Post-merge build-error fixes: removed duplicate `NavigationRoute.filter(...)` / `navigationBarCloseButton(...)` / `FilterView.swift`, `hasFilters` → `isNotEmpty`, `.send(.reset())` → `.reset(filterType: nil)`, added missing `rememberFiltering` / `rememberFilteringFooter` keys to `en.lproj/Localizable.strings`. **`xcodebuild` BUILD SUCCEEDED** at this commit. |
+| P4.4 | 🟡 in progress | — | Second-audit fixes: restore the *real* `navigationBarCloseButton` impl on tvOS (the build-fix incorrectly removed it and left only the no-op stub, breaking Close on every tvOS sheet — filter, sign-in, settings, etc.); re-add `"by"` localization key (had been hardcoded as a literal). |
+| P5 | 🟡 in progress | — | `.app` installed on sim `68CB155B-71F7-4326-8131-B3621A95BFCF` (Apple TV 4K 3rd gen, tvOS 26.2). Pending: re-install after P4.4, launch, sign in with `lgtv/lgtv`, verify filter pills, verify rememberFiltering persists across relaunch, open new tvOS player. |
+| P6 | ⚪ pending | — | After P5 passes: add "Resolution" section to `tvos-simulator-login-report.md` pointing at `167628b7`; note upstream issues #163/#776/#809/#930 likely closed. |
 
 Legend: ✅ done · 🟡 in progress · 🔴 blocked · ⚪ pending
+
+### Post-merge audit findings (commits 35321724 + cd550694)
+
+Run via a multi-agent code-review pass on `f122abb9..HEAD`. Findings grouped:
+
+**BLOCKER (fixed):**
+- `rememberFiltering` toggle had no UI — `CustomizeSettingsView.swift` missing the `@Default` binding + Toggle. The persistence machinery (init-time restore in `PagingLibraryViewModel.swift:184-200`, onChange persist in `PagingLibraryView.swift:358-381`) was already present from appletv-stack, but without the UI the flag was hardcoded false. → fixed in `35321724`.
+
+**REGRESSION (fixed):**
+- `.isPlayed` / `.isUnplayed` mutual exclusion lost when `FilterViewModel.swift` was taken `--theirs`. The old switch-based architecture had this logic in `.update(type, filters)` which doesn't exist in the new `@Stateful` macro pipeline. → re-added inline in `ItemFilterType.swift` `.traits` setter in `35321724`.
+
+**OK (intact):**
+- All 11 SwiftfinDefaults keys (`rememberLayout/Sort/Filtering/enabledDrawerFilters/displayType/posterType/listColumnCount/randomImage/showFavorites/cinematicBackground/letterPickerOrientation`) at `SwiftfinDefaults.swift:185-229`.
+- `StoredValues[.User.libraryFilters(parentID:)]` at `StoredValues+User.swift:142`, full collection persisted.
+- PR #1882 surfaces (`MediaStream.swift` `buildIndexMap`, `MediaPlayerManager` track plumbing) intact.
+- PR #1902 surfaces (`Swiftfin tvOS/Views/VideoPlayer/PlaybackControls/` tree) intact.
+
+### Second audit findings (after build fixes — being addressed in P4.4)
+
+**BLOCKER:**
+- `navigationBarCloseButton` real impl was deleted from `Swiftfin tvOS/Extensions/View/View-tvOS.swift`. The commit message claimed `.topBarTrailing` doesn't exist on tvOS — **false**, it's used in `Shared/Extensions/ViewExtensions/ViewExtensions.swift:390-397` and compiles for tvOS. The duplicate-symbol problem should have been resolved by removing the **stub** instead. Every tvOS sheet that calls `.navigationBarCloseButton { router.dismiss() }` (FilterView, UserSignInView, AppSettingsView, SettingsView, ItemRefreshView, ConnectToServerView, QuickConnectView, ItemSubtitleSearchView, EditDeviceProfileView, Section.swift) currently has no Close button. → being fixed in P4.4.
+
+**REGRESSION:**
+- Hardcoded `Text("by")` in `LibraryHeader.swift`. Was `L10n.by.lowercased()`. The merge dropped the `"by"` key from `en.lproj/Localizable.strings`. → re-adding the key + restoring the call site in P4.4.
+
+**ACCEPTED LOSS:**
+- The tvOS-specific `Swiftfin tvOS/Views/FilterView.swift` (238 lines with explicit sortBy/sortOrder sections, icon Reset button, 50%-width Form via GeometryReader) was deleted. Replaced by the unified `Shared/Views/FilterView.swift` from PR #1823. Visual layout will be different — accept and re-evaluate from the sim.
+
+### Phase 4 conflict resolution table (actual)
+
+| File | How resolved | Notes |
+|---|---|---|
+| `Shared/Extensions/ViewExtensions/ViewExtensions.swift` | Union (drop `#if DEBUG`, take modernized signature) | Keep #1770's debugBackground-unconditional fix on top of appletv-stack's `some ShapeStyle` style. |
+| `Shared/Services/SwiftfinDefaults.swift` | Union of all keys | All 11 keys preserved. |
+| `Shared/ViewModels/FilterViewModel.swift` | `--theirs` (appletv-stack) | Architectures incompatible (switch-based vs `@Stateful` macro). Lost behaviors re-added via P4.1. |
+| `Shared/ViewModels/LibraryViewModel/PagingLibraryViewModel.swift` | Union (HEAD's `HasTotalCount` ext + appletv-stack's `@MainActor`) | Trivial merge. |
+| `Swiftfin tvOS/Views/PagingLibraryView/PagingLibraryView.swift` | Hybrid — appletv-stack body + #1770's `safeAreaInset` for LibraryHeader | `safeAreaPadding`→`padding` bug fixed in P4.2. |
+| `Swiftfin tvOS/.../CustomizeViewsSettings/.../LibrarySection.swift` | Accepted deletion | appletv-stack removed entire folder; verified no remaining callers. The `rememberFiltering` Toggle was relocated to `Shared/Views/SettingsView/CustomizeSettingsView.swift` in P4.1. |
+| `Swiftfin/.../CustomizeViewsSettings/CustomizeViewsSettings.swift` | Accepted deletion | Same as above. |
+| `Translations/en.lproj/Localizable.strings` | `--theirs` (appletv-stack — superset) | Lost #1770-only keys (`by`, `rememberFiltering`, `rememberFilteringFooter`, ~28 others). Critical ones re-added in P4.3 / P4.4. Strings.swift falls back to literal text for the rest at runtime. |
 
 ---
 
 ## Out of scope / out of band
 
 - **Rotate the leaked API key on the Jellyfin server** ✅ done by user. The key was `b127840f…`; it appeared in a working-tree patch only and will not enter any commit on this branch.
-- **Upstream PR**: if the team wants, the Phase 1 commit (keychain fix) is a strong candidate for a small focused upstream PR — high value, low risk, likely closes multiple long-standing tvOS issues.
+- **Upstream PR**: if the team wants, the Phase 1 commit (`167628b7`, keychain fix) is a strong candidate for a small focused upstream PR — high value, low risk, likely closes multiple long-standing tvOS issues.
+- **Outstanding `Localizable.strings` keys**: ~26 #1770-only keys are not in the merged en.lproj. They have runtime fallbacks via `Strings.swift`, so the UI works in English but other locales show key names. Not blocking; add as a follow-up if you want clean translations.
