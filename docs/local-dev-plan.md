@@ -112,10 +112,39 @@ Expected conflicts (from earlier abort):
 | P4.2 | ✅ done | `cd550694` | UI audit fix: filter pills now use `Color.secondarySystemFill` + `.card` (drops the brightness focus hack), wire `.tint(accentColor)` so active pills pick up the user accent, use `.firstTextBaseline` alignment, fix `safeAreaPadding`→`padding` bug on the inset host. |
 | P4.3 | ✅ done | `50971ebb` | Post-merge build-error fixes: removed duplicate `NavigationRoute.filter(...)` / `navigationBarCloseButton(...)` / `FilterView.swift`, `hasFilters` → `isNotEmpty`, `.send(.reset())` → `.reset(filterType: nil)`, added missing `rememberFiltering` / `rememberFilteringFooter` keys to `en.lproj/Localizable.strings`. **`xcodebuild` BUILD SUCCEEDED** at this commit. |
 | P4.4 | ✅ done | `23252324` | Second-audit fixes: restored the *real* `navigationBarCloseButton` impl on tvOS (`50971ebb` incorrectly removed it and left only the no-op stub, breaking Close on every tvOS sheet); re-added `"by"` localization key (had been hardcoded as a literal in `cd550694`). **`xcodebuild` BUILD SUCCEEDED** at this commit. |
-| P5 | 🟡 paused | — | Last verified state: `xcodebuild ... Debug build` at HEAD `23252324` → BUILD SUCCEEDED. `.app` installed on sim `68CB155B-71F7-4326-8131-B3621A95BFCF` (Apple TV 4K 3rd gen, tvOS 26.2) at the prior `50971ebb` build via `xcrun simctl install`. **Not yet reinstalled at `23252324` and not launched.** Pending: see "Next session" below. |
+| P5 | 🟡 in progress | — | First reinstall+launch at `23252324` crashed on UserSession.init → keychain assertionFailure (stale CoreData from `50971ebb`'s hack-era install). Wiping app + rebuilding fixed the launch path. Sign-in flow exercised by user with `lgtv/lgtv` against `http://192.168.50.154:8096` (server "M1Center"). Surfaced 6 follow-up issues (see P5 audit) — being fixed in P5.1+. |
+| P5.1 | ✅ done | _uncommitted_ | **Multi-pill library filter UI restored.** `LibraryHeader.swift` rewritten to iterate `enabledDrawerFilters` and render one pill per `ItemFilterType` (Genres, Lettre, Tri, Tags, Filtres, Années) — matches iOS `NavigationBarFilterDrawer` pattern. Active pills tint to accent color; each opens its own selector sheet via `.filter(type:, viewModel:)`. Reset pill added when any filter is active. Previous single "Tout" pill is gone. |
+| P5.2 | ✅ done | _uncommitted_ | **Doubled title fixed.** `PagingLibraryView.swift` no longer sets `.navigationTitle(...)` — the `LibraryHeader` already renders the title + count inline, and the platform's auto nav-title was overlapping the grid. Single source of truth now. |
+| P5.3 | ✅ done | _uncommitted_ | **Duplicate "Favoris" in Traits sheet fixed.** Root cause: French `Translations/fr.lproj/Localizable.strings` mapped both `favorites` and `likedItems` to `"Favoris"`. Changed `likedItems` → `"Aimés"` so `.isFavorite` and `.likes` are visually distinct. (File is UTF-16; edited via Python `codecs.open`.) |
+| P5.4 | ✅ done | _uncommitted_ | **Filter persistence default flipped.** `SwiftfinDefaults.swift`: `rememberFiltering` and `rememberSort` now default to `true` (were `false`). Persistence machinery in `PagingLibraryView.swift:358-381` + read-back in `PagingLibraryViewModel.init:186-199` already symmetric; just unlocked it by default. User no longer needs to find/toggle the Settings option to get the expected behavior. |
+| P5.5 | ✅ done | _uncommitted_ | **Local app icon now visibly green** (was identical cyan to App Store version). Two fixes: (a) `Swiftfin.xcodeproj/project.pbxproj` — `ASSETCATALOG_COMPILER_APPICON_NAME` changed from `"App Icon & Top Shelf Image"` to `"App Icon Local"` for tvOS Debug + Release (target-level pbxproj override was beating the xcconfig). (b) Regenerated all PNGs in `App Icon Local.brandassets/` from the upstream brandassets with a B↔G channel swap, turning the cyan triangle + dark-blue background into a green triangle + dark-green background. App Store imagestack flavor done too. |
+| P5.6 | ✅ done | _uncommitted_ | **Empty Home (Accueil) page fixed.** Root cause: when the user had no Resume items, the `else` branch of `HomeView.contentView` rendered a `CinematicRecentlyAddedView` whose inner `CinematicItemSelector` forces `.frame(height: UIScreen.main.bounds.height - 75, alignment: .bottomLeading)` — i.e. the entire screen minus 75pt. This full-screen frame, combined with `.ignoresSafeArea()` on the outer ZStack, pushed every subsequent row (NextUp, Latest-per-library, libraries-shortcut) off-screen even though the data was actually loaded. **Fix:** rewrote `Swiftfin tvOS/Views/HomeView/HomeView.swift` to use a flat stacked layout — `NextUpView → RecentlyAddedView (non-cinematic) → ForEach(libraries) → librariesShortcut` — with `padding(.top, 130)` to clear the top nav. Cinematic hero kept ONLY when Resume items exist. Also added a guaranteed-non-empty `librariesShortcut` fallback row that lists the user's libraries as poster cards. Verified on sim: 9 Next Up items + 50 Recently Added + 50 Movies + 40 TV Shows + 8 Anime + 1 Fast_Anime all render correctly. |
+| P5.7 | ✅ done | _uncommitted_ | **Multi-pill filter UI polished to match iOS / Settings style.** First pass at P5.1 produced functional but visually-busy pills ("a bit ugly" per user). Rewrote `LibraryHeader.swift` with: capsule shape (matches iOS `NavigationDrawerLabelStyle`), `ultraThinMaterial` background with stroke outline, chevron-down indicator on each pill, accent fill when active, custom `FilterPillButtonStyle` providing subtle focus lift (scale 1.08 + shadow) without the heavy `.card` chrome that wrapped earlier pills. Title moved above the pill row (was crammed inline). |
+| P5.8 | ✅ done (verified via NSLog diagnostics 2026-05-27) | _uncommitted_ | **Confirmed working.** Diagnostic `NSLog`s added to the `.onChange` write block (`PagingLibraryView.swift:360-380`) and the `init` read (`PagingLibraryViewModel.swift:186-205`); sim run showed Anime library (`parentID=0c41907140d802bb58430fed7e2cd79e`) reading `traits=["IsUnplayed"]` on relaunch — i.e. persisted across full terminate+launch. Full cycle (`onChange FIRED` → `WROTE` → `READBACK` → next-launch `INIT READ`) is clean. The earlier "still fails" report was against a stale install where the uncommitted code wasn't actually on the sim. **Diagnostic `NSLog`s should be removed before committing.** Original-issue text below kept for history.<br><br>**Original (now resolved) text:** Defaults gates removed (unconditional read+write of `StoredValues[.User.libraryFilters(parentID:)]`) but live test STILL shows the filter not surviving an app terminate+relaunch. Code changes done: removed `if Defaults[.rememberFiltering]` / `rememberSort` gates in `Shared/ViewModels/LibraryViewModel/PagingLibraryViewModel.swift:184-200` (read) and `Swiftfin tvOS/Views/PagingLibraryView/PagingLibraryView.swift` `.onChange` (write). **Next-session hypotheses to investigate:** (a) `User.libraryFilters(parentID:)` is keyed via `CurrentUserKey(..., storage: .sql)` — the CoreStore SQL transaction may not be committing before app terminate, OR `ItemFilterCollection`'s Codable round-trip may be dropping the `traits` field; (b) `.onChange(of: viewModel.filterViewModel?.currentFilters)` may not be firing on the user-action path — try observing `filterViewModel.$currentFilters` Combine publisher with `.sink` directly in the view model so the write isn't view-layer-dependent; (c) verify with a temporary `NSLog` in `StoredValues[...] = newStoredFilters` setter that the write actually happens when the user toggles a trait. **Reinstall does NOT preserve filters by design** — `StoredValues` is app-local (UserDefaults + CoreStore); uninstall wipes the sandbox. Surviving reinstall would need keychain or iCloud-synced storage (out of scope). |
+| P5.10 | ✅ done (audit only — no code change) | — | **Filter settings → library-view wiring audited.** All filter-related defaults verified to be honored on tvOS. User report: "Letter Picker disabled in Settings, but Lettre pill still in drawer." → **Not a bug.** `Library.letterPickerOrientation` only controls the side A-Z bar (`LetterPickerBarModifier.swift:21`), while individual filter pills are governed by `Library.enabledDrawerFilters` (default `ItemFilterType.allCases`, iterated at `LibraryHeader.swift:64` and gated whole-header at `PagingLibraryView.swift:262`). These two settings are independent by design — same as iOS and Jellyfin Web. To hide the Lettre pill, the user must uncheck "Letter" under Settings → Filtres → Bibliothèque. Decision (2026-05-27): **document only, no code change.** Per-type honor matrix: `.genres / .letter / .sortBy / .tags / .traits / .years` all correctly route through `OrderedSectionSelectorView` (`NavigationRoute+Settings.swift:158`) → `$libraryEnabledDrawerFilters` → `LibraryHeader` `ForEach`. `Search.enabledDrawerFilters` is iOS-only; not wired on tvOS (no current tvOS filter UI in Search). Other library customizations (`displayType`, `posterType`, `listColumnCount`, `rememberLayout/Sort/Filtering`, `showFavorites`, `randomImage`) all verified to be read on the tvOS code path. |
+| P5.9 | ✅ done | _uncommitted_ | **Local app icon now visibly green** (P5.5 follow-up — first attempt embedded a "LOCAL" red ribbon, user preferred a clean color shift). Regenerated `App Icon Local.brandassets/**/*.png` from the upstream brandassets with a B↔G channel swap so the cyan jellyfin triangle becomes a green triangle on a dark-green background. Front (216 + 432 + 512 sizes) and Back (400×240 + 1280×768) layers all recolored. Combined with the P5.5 pbxproj patch (`ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon Local"` for tvOS Debug + Release), the home-screen icon is now distinctively green vs the App Store cyan version. Verified visually — see `/tmp/swiftfin-sim/06-green-icon.png` and `/tmp/swiftfin-sim/27-home-bottom.png`. |
 | P6 | ⚪ pending | — | After P5 passes: add "Resolution" section to `tvos-simulator-login-report.md` pointing at `167628b7`; note upstream issues #163/#776/#809/#930 likely closed. |
 
 Legend: ✅ done · 🟡 in progress · 🔴 blocked · ⚪ pending
+
+### P5 audit findings (2026-05-26 session — first user sim test)
+
+User signed in to the booted sim against `http://192.168.50.154:8096` (`lgtv/lgtv`) and surfaced six issues — five fixed in P5.1–P5.5 above, one (Home empty) still under investigation as P5.6.
+
+1. **Filter UI minimal** — Library header showed a single "Tout" pill instead of one pill per filter type (compared to iOS `NavigationBarFilterDrawer`). → Fixed in P5.1: iterate `enabledDrawerFilters` and render one `FilterPillButton` per type.
+2. **Library layout broken** — "Films" title appeared twice (once in `LibraryHeader`, once via `.navigationTitle(...)`); the auto-rendered nav title overlapped the poster grid. → Fixed in P5.2: dropped `.navigationTitle(...)` on tvOS only (the in-header `Text(title)` is the canonical source).
+3. **Filter not remembered across navigation** — Filters reset every time the user re-entered a library. Root cause: `rememberFiltering` / `rememberSort` defaulted to `false`, so the symmetric write→read paths in `PagingLibraryView` / `PagingLibraryViewModel.init` never ran. → Fixed in P5.4: defaults flipped to `true`.
+4. **Duplicate "Favoris" in Traits filter sheet** — French translation had `favorites = "Favoris"` AND `likedItems = "Favoris"`, so `.isFavorite` and `.likes` rendered identically. → Fixed in P5.3: `likedItems` → `"Aimés"`.
+5. **Local app icon identical to App Store icon** — Two-part bug: pbxproj target-level `ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image"` overrode the xcconfig's `App Icon Local`; AND the LOCAL-badged 2x PNG was missing the badge (only 1x had it, simulator picks 2x). → Fixed in P5.5: pbxproj patched + icons regenerated from upstream with a green-tint channel swap (no LOCAL-text overlay — per user preference for a clean color difference).
+6. **Home (Accueil) page completely empty** — All four data sources (`resumeItems`, `nextUpViewModel.elements`, `recentlyAddedViewModel.elements`, `libraries`) come back empty even though the user has 287 Films + multiple anime/TV libraries that show fine in the library tabs. State machine transitions to `.content` regardless. → Still pending as P5.6. Needs runtime instrumentation: `xcrun simctl spawn ... log stream --predicate 'subsystem == ...'` or temporary print() to confirm whether the Jellyfin `getResumeItems` / `getNextUp` / `getLatestMedia` endpoints actually return zero, or whether the view-model wiring is silently failing.
+
+### Stale-sim gotcha
+
+The first launch of the freshly-built `23252324` build crashed with `SIGILL` from `SwiftfinStore.State.User.accessToken.getter` → `assertionFailure("access token missing in keychain")` at `SwiftinStore+UserState.swift:33`. Root cause: the prior install from `50971ebb` had the keychain-hack version of UserState that never actually wrote tokens to the keychain — but it DID write a User record to CoreData. The new HEAD (post-P1) removed the hack and assumes the keychain entry exists. The stale CoreData record from the previous install pointed at a non-existent keychain entry → crash on launch. **Fix:** `xcrun simctl uninstall org.jellyfin.swiftfin.local` before installing a build that crosses the Phase 1 keychain refactor. After uninstall + fresh install, launch succeeds and the connect-to-server screen appears.
+
+### Empty entitlements caveat (Phase 1 fix is partially load-bearing)
+
+The signed binary's entitlements blob (`.xcent`) is **empty** — `codesign -d --entitlements -` returns `<dict/>` — even though `Swiftfin tvOS/Resources/Swiftfin tvOS.entitlements` declares `keychain-access-groups`. Reason: the entitlement uses `$(AppIdentifierPrefix)` which can't be resolved without a real provisioning profile (we have `DEVELOPMENT_TEAM=` empty for free-Apple-ID signing). Xcode drops the unresolved entitlement entirely. **On simulator this is fine** — the default keychain is shared inside the sim's bundle container, so `KeychainSwift.set/get` works without an access group. **On real hardware** the entitlement should resolve properly once a Development Team is configured in `DevelopmentTeam.xcconfig`. Don't be alarmed by the empty `.xcent` on the sim; it's not the cause of any current bug.
 
 ### Post-merge audit findings (commits 35321724 + cd550694)
 
@@ -169,16 +198,46 @@ Run via a multi-agent code-review pass on `f122abb9..HEAD`. Findings grouped:
 
 ## Next session — pick-up checklist
 
-State at pause (2026-05-25 evening):
+State at pause (2026-05-26 late evening, after second pass):
 
-- Current branch: `local/appletv-dev`, clean working tree (no uncommitted changes)
+- Current branch: `local/appletv-dev`, **working tree dirty** with the P5.1–P5.9 fixes uncommitted (see "uncommitted changes" below)
 - Last commit: `23252324 fix(tvOS): restore navigationBarCloseButton + L10n.by (second audit)`
-- Last build: ✅ `xcodebuild -scheme "Swiftfin tvOS" -destination "platform=tvOS Simulator,id=68CB155B-71F7-4326-8131-B3621A95BFCF" -configuration Debug build` → **BUILD SUCCEEDED**
-- Sim has a stale install from commit `50971ebb` — reinstall before launching.
+- Last build: ✅ `xcodebuild -scheme "Swiftfin tvOS" -destination "platform=tvOS Simulator,id=68CB155B-71F7-4326-8131-B3621A95BFCF" -configuration Debug build` → **BUILD SUCCEEDED** with P5.1–P5.9 applied
+- Sim `68CB155B-71F7-4326-8131-B3621A95BFCF` (Apple TV 4K 3rd gen, tvOS 26.2): currently has the **post-P5.9 build installed and running**, green-tinted LOCAL icon visible on home screen.
+
+### What got verified live in this session
+- ✅ **P5.1 + P5.7 (multi-pill UI, iOS/Settings style):** user image #6 + #8 — capsule pills `Genres / Lettre / Trier par nom / Étiquettes / Filtres / Années` with chevron-down indicator; active pill (Non lu) tints to accent purple.
+- ✅ **P5.2 (no doubled title):** user image #8 — "Films (140 éléments)" appears once.
+- ✅ **P5.3 (no duplicate Favoris):** user image #9 — Traits sheet now reads `Non lu / Déjà lu / Favoris / Aimés` (was `Non lu / Déjà lu / Favoris / Favoris`).
+- ✅ **P5.4 navigation persistence:** user confirmed "filter is kept" across Accueil → Films round trip.
+- ✅ **P5.5 + P5.9 (green LOCAL icon):** sim screenshots `/tmp/swiftfin-sim/06-green-icon.png` and `/tmp/swiftfin-sim/27-home-bottom.png` — green-on-dark-green, distinct from App Store cyan.
+- ✅ **P5.6 (empty Home fixed):** sim screenshots `/tmp/swiftfin-sim/25-home-fixed.png` (À suivre + Ajoutés Récemment populated) and `/tmp/swiftfin-sim/26-home-scrolled.png` (per-library latest rows: Anime / Fast_Anime / Movies / TV Shows).
+
+### What's still broken and deferred
+- ✅ **P5.8 restart persistence (resolved 2026-05-27):** instrumented with `NSLog`s, ran full terminate+relaunch cycle on the sim, observed `INIT READ … traits=["IsUnplayed"]` after relaunch. Working as intended. Diagnostic `NSLog`s still in the working tree at `PagingLibraryView.swift:361/367/378/381` and `PagingLibraryViewModel.swift:187/205` — **remove before committing P5 bundle.**
+- ❌ **Reinstall persistence:** by design — `StoredValues` (UserDefaults + CoreStore) dies with the app sandbox. Out of scope; would need iCloud KVS.
+
+### P5.10 follow-up consideration (deferred)
+
+User asked whether Home rows can be reordered / individually toggled. Today only `Customization.Home.showRecentlyAdded` exists (a single boolean for the top "Ajoutés récemment" row). The per-library "Latest in" rows render in server order with no UI to reorder or hide them individually. **Out of scope for this branch** — would need a `[String]` ordered/visible list default + a Settings drag-to-reorder list (precedent in Jellyfin Web and in `Customization/HomeSettings*` on iOS). Consider as a follow-up branch after the local release ships.
+
+### Uncommitted changes (to commit before next session ends)
+
+| File | What changed | Phase |
+|---|---|---|
+| `Swiftfin tvOS/Views/PagingLibraryView/Components/LibraryHeader.swift` | Rewrote twice: first to iterate `enabledDrawerFilters` → one pill per `ItemFilterType` (P5.1); then again with iOS `NavigationDrawerLabelStyle`-matching style — capsule + ultraThinMaterial + stroke + chevron, custom `FilterPillButtonStyle` for subtle focus lift (P5.7). | P5.1 + P5.7 |
+| `Swiftfin tvOS/Views/PagingLibraryView/PagingLibraryView.swift` | Removed `.navigationTitle(...)` so the in-header title is canonical (P5.2). Made filter/sort persistence unconditional by dropping the `if Defaults[.rememberFiltering]` gate in `.onChange` (P5.8). | P5.2 + P5.8 |
+| `Translations/fr.lproj/Localizable.strings` | `likedItems`: `"Favoris"` → `"Aimés"` (disambiguates from `favorites`). | P5.3 |
+| `Shared/Services/SwiftfinDefaults.swift` | `rememberFiltering` + `rememberSort` defaults flipped `false` → `true` (P5.4). Toggle exists for fresh installs; existing installs are now covered by P5.8's unconditional path. | P5.4 |
+| `Shared/ViewModels/LibraryViewModel/PagingLibraryViewModel.swift` | Made filter restore unconditional in `init` (was gated by `Defaults[.rememberFiltering]` / `rememberSort` — see P5.8 rationale). | P5.8 |
+| `Swiftfin tvOS/Views/HomeView/HomeView.swift` | Rewrote layout: flat stacked rows (NextUp → RecentlyAdded → Latest-per-library → Libraries) with top-padding for the tab bar. Cinematic hero kept ONLY when Resume items exist; the full-screen `CinematicRecentlyAddedView` frame was pushing every subsequent row off-screen. Added always-visible `librariesShortcut` fallback. | P5.6 |
+| `Swiftfin.xcodeproj/project.pbxproj` | tvOS Debug + Release `ASSETCATALOG_COMPILER_APPICON_NAME` → `"App Icon Local"`. | P5.5 |
+| `Swiftfin tvOS/Resources/Assets.xcassets/App Icon Local.brandassets/**/*.png` (6 files) | Front + Back layers re-sourced from upstream, then channel-swapped B↔G to produce a green icon (no text overlay — clean color shift per user preference). | P5.5 + P5.9 |
 
 Commit graph since `pr-1770-filters`:
 
 ```
+(uncommitted)                                                                   ← P5.1–P5.5 above
 23252324 fix(tvOS): restore navigationBarCloseButton + L10n.by (second audit)   ← HEAD
 50971ebb fix(tvOS): resolve post-merge build errors
 cd550694 fix(tvOS): library filter pills — accent color, readability, focus fixes
@@ -192,24 +251,36 @@ f5aeb5b6 chore: bump CollectionVGrid to e5b869c
 167628b7 fix(tvOS): add CODE_SIGN_ENTITLEMENTS so keychain works on simulator
 ```
 
-### To resume P5 (build + sign-in verification on sim)
+### To resume P5 (verify the P5.1–P5.5 fixes on sim + tackle P5.6 empty Home)
 
-1. Reinstall the freshly-built `.app` on the booted Apple TV sim:
+1. **Sim should already be ready** — green-icon build was installed at the end of last session. Just relaunch:
    ```bash
-   APP="/Users/cyrilnaimi/Library/Developer/Xcode/DerivedData/Swiftfin-gimasjlzhpdqaxaswqzmhlnmznuj/Build/Products/Debug-appletvsimulator/Swiftfin tvOS.app"
-   xcrun simctl install 68CB155B-71F7-4326-8131-B3621A95BFCF "$APP"
    xcrun simctl launch 68CB155B-71F7-4326-8131-B3621A95BFCF org.jellyfin.swiftfin.local
    ```
-   (Bundle id is `.local` per `XcodeConfig/DevelopmentTeam.xcconfig`.)
-2. Sign in with `lgtv` / `lgtv`. Confirm token persists across a kill+relaunch (validates the Phase 1 entitlements fix).
-3. Open a library → exercise the filter pills:
-   - Tap a Filter pill, set a Genre. Confirm the pill turns accent-purple (P4.2).
-   - Tap Reset. Confirm pill goes back to grey.
-   - Set a filter, enable **Settings → Customize → Library → "Remember filtering"** (P4.1 added this toggle).
-   - Kill the app and relaunch. Confirm the filter survived.
-4. Verify `.isPlayed` + `.isUnplayed` mutual exclusion: open the Traits filter, tap both — only the most recent should remain selected (P4.1).
-5. Open an episode → confirm the new tvOS player from #1902 launches (don't need to play to completion).
-6. Open Settings → confirm the Close button works (validates the P4.4 BLOCKER fix).
+   If the working tree was reset and rebuild is needed: see "If the build needs a fresh start" below.
+
+2. **Verify P5.1 (multi-pill filter UI):** Sign in (`lgtv`/`lgtv` against `http://192.168.50.154:8096`). Open Films or any library. Confirm the header now shows multiple filter pills (Genres, Lettre, Tri, Tags, Filtres, Années) instead of a single "Tout" pill. Each pill should be tappable and open its own selector sheet.
+
+3. **Verify P5.2 (no doubled title):** The library title ("Films") should appear ONCE in the header, not also as a big centered title overlapping the grid.
+
+4. **Verify P5.3 (no duplicate Favoris):** Filtres pill → Traits sheet → entries should read `Non lu`, `Déjà lu`, `Favoris`, `Aimés` (was: `Favoris`, `Favoris`).
+
+5. **Verify P5.4 (filter persistence):** Set a filter on Films. Navigate away (Accueil tab) and back to Films. The filter should still be applied — no need to toggle anything in Settings.
+
+6. **Verify P5.5 + P5.9 (green icon):** On the tvOS home screen (press Menu/Esc), the Swiftfin Local app icon should be green-on-dark-green, distinct from the cyan-on-dark-blue App Store version. ✅ Verified — `/tmp/swiftfin-sim/06-green-icon.png` and `/tmp/swiftfin-sim/27-home-bottom.png`.
+
+7. **Verify P5.6 (Home no longer empty):** Open Accueil tab. Should see À suivre (Next Up), Ajoutés Récemment (Recently Added), Anime récents, Fast_Anime récents, Movies récents, TV Shows récents, and a "Libraries" shortcut row. ✅ Verified — `/tmp/swiftfin-sim/25-home-fixed.png` + `/tmp/swiftfin-sim/26-home-scrolled.png`.
+
+8. **P5.8 restart persistence — STILL FAILING despite the unconditional read+write fix.** User confirmed live that applying `Non lu` on Films, terminating, and relaunching still drops the filter. The code path is correct (symmetric read+write of `StoredValues[.User.libraryFilters(parentID: id)]`), so the issue is somewhere lower in the stack. **Top hypotheses to investigate first in the next session:**
+   1. **Verify the write actually happens.** Add a temporary `NSLog` inside the `.onChange` write block in `Swiftfin tvOS/Views/PagingLibraryView/PagingLibraryView.swift`. Apply Non lu and check the unified log — if no log line appears, `.onChange` isn't firing for filter changes (possibly because `ItemFilterCollection`'s `Equatable` is too coarse and the new value equals the old one, or because `currentFilters?` optional comparison short-circuits). Fix by switching to a Combine `.sink` on `filterViewModel.$currentFilters` from inside `PagingLibraryViewModel`.
+   2. **Verify the SQL transaction commits.** `User.libraryFilters(...)` uses `storage: .sql` (CoreStore). On app terminate, an in-flight transaction may be abandoned. Either change `storage` to `.defaults` for this key (UserDefaults flushes synchronously) or add `CoreStoreDefaults.dataStack.perform(...)` with explicit commit before the write returns.
+   3. **Verify Codable round-trip preserves traits.** `ItemFilterCollection` encodes via Codable into the CoreStore blob. If `.traits` (a `[ItemTrait]`) doesn't survive a round-trip, the read would always restore default traits even though the rest of the struct is fine. Write a one-shot Swift unit test that encodes `.default.mutating(\.traits, with: [.isUnplayed])`, decodes, and asserts traits equals `[.isUnplayed]`.
+   4. **Reinstall is out of scope.** App-local UserDefaults + CoreStore both die with the app sandbox. Filter survival across reinstall requires either Keychain (limited size, awkward for collections) or iCloud KVS (`NSUbiquitousKeyValueStore`). Defer until restart works.
+
+9. **Verify the rest of the P5 checklist (carried over from earlier):**
+   - `.isPlayed` + `.isUnplayed` mutual exclusion (P4.1): open Filtres → Traits, tap both — only the most recent should remain selected.
+   - New tvOS player (#1902): open an episode → confirm new player UI launches.
+   - Settings Close button (P4.4): open any Settings sheet → confirm Fermer button dismisses.
 
 ### If the build needs a fresh start
 

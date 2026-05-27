@@ -327,7 +327,9 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
         }
         .frame(maxWidth: .infinity)
         .animation(.linear(duration: 0.1), value: viewModel.state)
-        .navigationTitle(viewModel.parent?.displayTitle ?? "")
+        // navigationTitle intentionally omitted on tvOS: LibraryHeader (attached
+        // via safeAreaInset) already renders the title + item count inline. The
+        // platform's auto-rendered nav title was overlapping the grid.
         .ignoresSafeArea(.all, edges: .vertical)
         .letterPickerBar(filterViewModel: viewModel.filterViewModel)
         .refreshable {
@@ -358,26 +360,21 @@ struct PagingLibraryView<Element: Poster & Identifiable>: View {
         .onChange(of: viewModel.filterViewModel?.currentFilters) { _, newValue in
             guard let newValue, let id = viewModel.parent?.id else { return }
 
-            var newStoredFilters = StoredValues[.User.libraryFilters(parentID: id)]
-
-            if Defaults[.Customization.Library.rememberSort] {
-                newStoredFilters = newStoredFilters
-                    .mutating(\.sortBy, with: newValue.sortBy)
-                    .mutating(\.sortOrder, with: newValue.sortOrder)
-            }
-
-            if Defaults[.Customization.Library.rememberFiltering] {
-                newStoredFilters = newStoredFilters
-                    .mutating(\.genres, with: newValue.genres)
-                    .mutating(\.letter, with: newValue.letter)
-                    .mutating(\.tags, with: newValue.tags)
-                    .mutating(\.traits, with: newValue.traits)
-                    .mutating(\.years, with: newValue.years)
-            }
-
-            if Defaults[.Customization.Library.rememberSort] || Defaults[.Customization.Library.rememberFiltering] {
-                StoredValues[.User.libraryFilters(parentID: id)] = newStoredFilters
-            }
+            // Always persist filters + sort. The `rememberFiltering` / `rememberSort`
+            // Defaults gates were removed because they were opt-in for existing users
+            // (Defaults library doesn't migrate a new `default:` value into an
+            // existing UserDefaults entry, so users who pre-date the new defaults
+            // still lost their filters across launches). See matching read path in
+            // `PagingLibraryViewModel.init`.
+            let newStoredFilters = StoredValues[.User.libraryFilters(parentID: id)]
+                .mutating(\.sortBy, with: newValue.sortBy)
+                .mutating(\.sortOrder, with: newValue.sortOrder)
+                .mutating(\.genres, with: newValue.genres)
+                .mutating(\.letter, with: newValue.letter)
+                .mutating(\.tags, with: newValue.tags)
+                .mutating(\.traits, with: newValue.traits)
+                .mutating(\.years, with: newValue.years)
+            StoredValues[.User.libraryFilters(parentID: id)] = newStoredFilters
         }
         .onReceive(viewModel.events) { event in
             switch event {

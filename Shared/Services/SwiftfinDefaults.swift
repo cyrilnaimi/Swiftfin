@@ -222,11 +222,11 @@ extension Defaults.Keys {
             }
 
             static var rememberSort: Key<Bool> {
-                UserKey("libraryRememberSort", default: false)
+                UserKey("libraryRememberSort", default: true)
             }
 
             static var rememberFiltering: Key<Bool> {
-                UserKey("libraryRememberFiltering", default: false)
+                UserKey("libraryRememberFiltering", default: true)
             }
         }
 

@@ -185,18 +185,19 @@ class PagingLibraryViewModel<Element: Poster>: ViewModel, Eventful, Stateful {
             if let id = parent?.id {
                 let storedFilters = StoredValues[.User.libraryFilters(parentID: id)]
 
-                if Defaults[.Customization.Library.rememberSort] {
-                    filters.sortBy = storedFilters.sortBy
-                    filters.sortOrder = storedFilters.sortOrder
-                }
-
-                if Defaults[.Customization.Library.rememberFiltering] {
-                    filters.genres = storedFilters.genres
-                    filters.letter = storedFilters.letter
-                    filters.tags = storedFilters.tags
-                    filters.traits = storedFilters.traits
-                    filters.years = storedFilters.years
-                }
+                // Always restore persisted filters/sort. The `rememberFiltering` /
+                // `rememberSort` Defaults gates were removed because (a) the Defaults
+                // library doesn't apply a new `default:` value to existing installs,
+                // so users who pre-date the new defaults still saw filters disappear
+                // across launches; and (b) "remember my selections" is the expected
+                // behavior — making it opt-in surprised users.
+                filters.sortBy = storedFilters.sortBy
+                filters.sortOrder = storedFilters.sortOrder
+                filters.genres = storedFilters.genres
+                filters.letter = storedFilters.letter
+                filters.tags = storedFilters.tags
+                filters.traits = storedFilters.traits
+                filters.years = storedFilters.years
             }
 
             self.filterViewModel = .init(

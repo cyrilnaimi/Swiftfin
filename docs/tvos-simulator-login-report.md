@@ -165,3 +165,35 @@ You should see `application-identifier` and/or `keychain-access-groups` in the o
 ## 7. TL;DR
 
 The hardcoded API key in `SwiftinStore+UserState.swift` masks a configuration bug: the **Swiftfin tvOS** target has no `CODE_SIGN_ENTITLEMENTS` file. On the tvOS simulator that leaves the built app without an `application-identifier` entitlement, so every keychain read/write fails with `-34018` and the saved access token is lost. The right fix is to add a tvOS entitlements file (Option A above) and revert the workaround. The committed key should also be rotated/revoked on the corresponding Jellyfin server since it is now in repo history.
+
+## 8. Resolution
+
+**Fixed on `local/appletv-dev` in commit [`167628b7`](../../commit/167628b7) — `fix(tvOS): add CODE_SIGN_ENTITLEMENTS so keychain works on simulator`.**
+
+What changed:
+
+- Added `Swiftfin tvOS/Resources/Swiftfin tvOS.entitlements` with a `keychain-access-groups` array (`$(AppIdentifierPrefix)org.jellyfin.swiftfin`).
+- Wired `CODE_SIGN_ENTITLEMENTS = Swiftfin tvOS/Resources/Swiftfin tvOS.entitlements` for both Debug and Release of the tvOS target in `Swiftfin.xcodeproj/project.pbxproj`.
+- Reverted the hardcoded-key workaround in `SwiftinStore+UserState.swift` back to its original `assertionFailure("access token missing in keychain")` form.
+
+Verification (sim — 2026-05-27, Apple TV 4K 3rd gen, tvOS 26.2):
+
+- Cold launch → connect to `http://192.168.50.154:8096` → sign in as `lgtv/lgtv` → token written to keychain.
+- `xcrun simctl terminate org.jellyfin.swiftfin.local` → `xcrun simctl launch …` → app **resumes signed in**, no `-34018` and no `assertionFailure`. The previously-reported login-loss-on-relaunch is gone.
+
+### Empty `.xcent` caveat (not a regression)
+
+On the simulator, `codesign -d --entitlements - "Swiftfin tvOS.app"` returns `<dict/>` — i.e. the embedded entitlements blob is **empty**. Reason: the `keychain-access-groups` value uses `$(AppIdentifierPrefix)`, which Xcode can only resolve from a real provisioning profile. With `DEVELOPMENT_TEAM=""` (free-Apple-ID dev signing on the sim) there is no profile, so Xcode silently drops the unresolved entitlement. This is **fine on simulator** — the sim's default keychain is shared inside the per-bundle container and `KeychainSwift.set/get` works without an access group declaration. On real hardware the entitlement should resolve normally once `DevelopmentTeam.xcconfig` is filled with a real team ID.
+
+### Upstream issues likely closed by this fix
+
+The same configuration bug appears to be the root cause of several long-standing tvOS issues. Filing a small focused upstream PR with just commit `167628b7` is recommended — high value, low risk:
+
+- jellyfin/Swiftfin#163 — `[tvOS] Login does not persist`
+- jellyfin/Swiftfin#776 — `Logged Out Between Sessions [TVOS]`
+- jellyfin/Swiftfin#809 — `tvOS - Signing out of server constantly`
+- jellyfin/Swiftfin#930 — `tvOS: Can no longer sign in`
+
+### Stale-CoreData gotcha when rolling forward
+
+Builds that pre-date commit `167628b7` carried a workaround (`SwiftinStore+UserState.swift`) that wrote a `User` row to CoreData but never wrote a token to the keychain. When the post-fix build is installed *on top of* such an install, launch crashes with `SIGILL` at the `accessToken` getter (`assertionFailure` on a missing keychain entry). Fix: `xcrun simctl uninstall org.jellyfin.swiftfin.local` before installing any build that crosses the Phase 1 boundary. Real-device upgrades from pre-fix App Store builds are unaffected (the App Store build has a different bundle id, `org.jellyfin.swiftfin` vs `.local`).
