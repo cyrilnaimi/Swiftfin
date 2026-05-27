@@ -217,19 +217,54 @@ State at pause (2026-05-26 late evening, after second pass):
 - ✅ **P5.8 restart persistence (resolved 2026-05-27):** instrumented with `NSLog`s, ran full terminate+relaunch cycle on the sim, observed `INIT READ … traits=["IsUnplayed"]` after relaunch. Working as intended. Diagnostic `NSLog`s still in the working tree at `PagingLibraryView.swift:361/367/378/381` and `PagingLibraryViewModel.swift:187/205` — **remove before committing P5 bundle.**
 - ❌ **Reinstall persistence:** by design — `StoredValues` (UserDefaults + CoreStore) dies with the app sandbox. Out of scope; would need iCloud KVS.
 
-### Upstream PR drift snapshot (2026-05-27)
+### Upstream PR drift snapshot (last checked 2026-05-27)
 
-Audited the three PRs we forked from. State at this point:
+Audited the three PRs we forked from, plus #1752 which is in the same area.
 
 | PR | Our head | Upstream head | Drift |
 |---|---|---|---|
 | #1770 Library Filters and Sorting | `17b13d7f` | `17b13d7f` | ✅ none |
 | #1882 Index/Track Fixes | `65579dec` | `65579dec` | ✅ none |
 | #1902 tvOS Media Player | `fd14fea3` | `6e14bf72` | ⚠️ +2 `wip` commits |
-
-The #1902 drift is two `wip` commits by Ethan Pippin (`1a714fef` May 25 — slider/supplement refactor; `6e14bf72` May 26 — action-button reorg + new TintedMaterial / OverlayButtonStyle components). Both bump `Package.resolved` and touch `project.pbxproj`. Together: 37 files, ~590 LOC net delta. **Decision: do not merge yet.** Rationale: they are explicitly wip (author iterating), they don't fix any known issue on this branch (player works fine on the sim), and they'd land directly on the pbxproj/Package.resolved surfaces where our `e5b869c` CollectionVGrid pin and `App Icon Local` asset name live. Re-evaluate when (a) #1902 is marked ready-for-review / loses `wip`, (b) a player bug surfaces here that the new commits address, or (c) we do a deliberate sync-to-upstream sweep before tagging.
+| #1752 Posters, Libraries, Home (LePips) | _not integrated_ | `e7bae1d2` | — see §"#1752 — not integrated, not desirable" below |
 
 `origin/main` since our merge: only Weblate translation updates — nothing actionable.
+
+#### #1902 — what the two `wip` commits actually are
+
+Important context from the PR conversation: JPKribs (original author) handed off and listed three known performance issues with fixes ideas. LePips (project owner) then started his review pass and pushed the two `wip` commits. **These are not new bug fixes for problems we have — they are LePips's final-polish iterations on top of JPKribs's handoff.**
+
+**`1a714fef` (May 25, 12 files, +294 / −124) — "scrub state cleanup + perf"**
+- `Shared/Objects/VideoPlayerContainerState.swift`: removes the duplicate `hasEnteredScrubMode` flag (could desync from `isScrubbing` — a real latent bug). Moves `centerOffset` from `@Published var` to a `PublishedBox` wrapper so view re-renders no longer trigger on every offset tick during scrubbing — directly addresses JPKribs's listed item #1 (scrub perf).
+- `Swiftfin tvOS/Objects/SupplementTabView.swift` (+177): reworks the tvOS supplement tab logic — addresses JPKribs's item #2 (TabView scrolling hitches).
+- `Swiftfin tvOS/Components/VideoPlayerSlider.swift`, `PlaybackProgress.swift`, `PlaybackControls.swift`: slider state-model cleanup.
+- `Package.resolved` bump.
+
+**`6e14bf72` (May 26, 25 files, +298 / −124) — "structural reorg + new visual primitives"**
+- 11 file renames: `Shared/Views/VideoPlayer/Components/NavigationBar/` → `Toolbar/`. Same code, new folder (94–97% similarity per rename — why the file count looks scary).
+- New `Shared/Components/TintedMaterialShapeStyle.swift` (+36) — new visual primitive for player chrome.
+- New `Shared/Views/VideoPlayer/ButtonStyle/OverlayButtonStyle.swift` (+55).
+- Small tweaks to `MediaInfoSupplement` (+30), `VideoPlayerActionButton` (+30), `MediaChaptersSupplement`.
+- Another `Package.resolved` bump.
+
+**Decision: defer both.** The player works in our sim test (verified P5 session). `1a714fef` has a small latent bug fix worth pulling *if* scrub-state weirdness surfaces on the AppleTV hardware, but the rest is forward-looking polish, not bugfixes. Both commits touch `project.pbxproj` + `Package.resolved` — exactly where conflicts with our `e5b869c` CollectionVGrid pin and `App Icon Local` asset name live.
+
+**Re-evaluate when** (a) #1902 is marked ready-for-review / loses `wip`, (b) a scrub or supplement-tab perf issue surfaces on real hardware, or (c) we do a deliberate sync-to-upstream sweep before tagging.
+
+**If we want a partial pull later:** cherry-pick `1a714fef` only (skip `6e14bf72` cosmetic reorg). Tracking branch already fetched at `jpkribs/tvOSPlayer`; commits are: `git cherry-pick 1a714fef`.
+
+#### #1752 — not integrated, not desirable
+
+PR #1752 "Posters, Libraries, Home" (LePips, last updated 2026-05-09) is a foundational refactor — **444 files changed, +11,576 / −16,366 LOC**. It moves `PosterHStack` from per-platform folders to `Shared/Components/`, introduces `LibraryElement` / `LibraryStyle` / `PosterStyleRegistry` / `ContentGroup` / `PosterGroup` abstractions, and **deletes** `Swiftfin tvOS/Views/HomeView/HomeView.swift` entirely (replaces it with a new architecture).
+
+**We did NOT use #1752 for our P5.6 home-page rewrite.** That fix was a 111-line self-contained rewrite of `HomeView.swift` built on top of the existing tvOS components (`NextUpView`, `RecentlyAddedView`, `LatestInLibraryView`, the tvOS-specific `PosterHStack` at `Swiftfin tvOS/Components/PosterHStack.swift`).
+
+**Do not merge #1752 onto this branch.** Three reasons:
+1. It would delete the `HomeView.swift` we just polished and force re-doing the P5.6 layout on top of the new `PosterStyleRegistry` / `ContentGroup` abstractions.
+2. Scope mismatch — `local/appletv-dev` is a focused local release, #1752 is a 444-file architectural reshuffle.
+3. Conflict surface is enormous. Almost every poster / library / indicator file we touched in P5 is also touched by #1752.
+
+Only re-evaluate if rebasing onto an upstream main that has already merged #1752 — at that point we'd have to take it anyway and the work moves to porting P5.6 onto the new architecture (or accepting #1752's home design unchanged).
 
 ### P5.10 follow-up consideration (deferred)
 
