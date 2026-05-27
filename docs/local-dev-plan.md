@@ -217,6 +217,20 @@ State at pause (2026-05-26 late evening, after second pass):
 - ✅ **P5.8 restart persistence (resolved 2026-05-27):** instrumented with `NSLog`s, ran full terminate+relaunch cycle on the sim, observed `INIT READ … traits=["IsUnplayed"]` after relaunch. Working as intended. Diagnostic `NSLog`s still in the working tree at `PagingLibraryView.swift:361/367/378/381` and `PagingLibraryViewModel.swift:187/205` — **remove before committing P5 bundle.**
 - ❌ **Reinstall persistence:** by design — `StoredValues` (UserDefaults + CoreStore) dies with the app sandbox. Out of scope; would need iCloud KVS.
 
+### Upstream PR drift snapshot (2026-05-27)
+
+Audited the three PRs we forked from. State at this point:
+
+| PR | Our head | Upstream head | Drift |
+|---|---|---|---|
+| #1770 Library Filters and Sorting | `17b13d7f` | `17b13d7f` | ✅ none |
+| #1882 Index/Track Fixes | `65579dec` | `65579dec` | ✅ none |
+| #1902 tvOS Media Player | `fd14fea3` | `6e14bf72` | ⚠️ +2 `wip` commits |
+
+The #1902 drift is two `wip` commits by Ethan Pippin (`1a714fef` May 25 — slider/supplement refactor; `6e14bf72` May 26 — action-button reorg + new TintedMaterial / OverlayButtonStyle components). Both bump `Package.resolved` and touch `project.pbxproj`. Together: 37 files, ~590 LOC net delta. **Decision: do not merge yet.** Rationale: they are explicitly wip (author iterating), they don't fix any known issue on this branch (player works fine on the sim), and they'd land directly on the pbxproj/Package.resolved surfaces where our `e5b869c` CollectionVGrid pin and `App Icon Local` asset name live. Re-evaluate when (a) #1902 is marked ready-for-review / loses `wip`, (b) a player bug surfaces here that the new commits address, or (c) we do a deliberate sync-to-upstream sweep before tagging.
+
+`origin/main` since our merge: only Weblate translation updates — nothing actionable.
+
 ### P5.10 follow-up consideration (deferred)
 
 User asked whether Home rows can be reordered / individually toggled. Today only `Customization.Home.showRecentlyAdded` exists (a single boolean for the top "Ajoutés récemment" row). The per-library "Latest in" rows render in server order with no UI to reorder or hide them individually. **Out of scope for this branch** — would need a `[String]` ordered/visible list default + a Settings drag-to-reorder list (precedent in Jellyfin Web and in `Customization/HomeSettings*` on iOS). Consider as a follow-up branch after the local release ships.
