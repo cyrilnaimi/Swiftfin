@@ -368,6 +368,10 @@ internal enum L10n {
   internal static let conductor = L10n.tr("Localizable", "conductor", fallback: "Conductor")
   /// Confirm
   internal static let confirm = L10n.tr("Localizable", "confirm", fallback: "Confirm")
+  /// Confirm close
+  internal static let confirmClose = L10n.tr("Localizable", "confirmClose", fallback: "Confirm close")
+  /// Show a confirmation prompt before closing the player. When off, the player closes immediately.
+  internal static let confirmCloseFooter = L10n.tr("Localizable", "confirmCloseFooter", fallback: "Show a confirmation prompt before closing the player. When off, the player closes immediately.")
   /// Are you sure you want to delete %@ and all of its connected users?
   internal static func confirmDeleteServerAndUsers(_ p1: Any) -> String {
     return L10n.tr("Localizable", "confirmDeleteServerAndUsers", String(describing: p1), fallback: "Are you sure you want to delete %@ and all of its connected users?")

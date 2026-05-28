@@ -29,6 +29,10 @@ struct VideoPlayerSettingsView: View {
     private var barActionButtons
     @Default(.VideoPlayer.menuActionButtons)
     private var menuActionButtons
+    #if os(tvOS)
+    @Default(.confirmClose)
+    private var confirmClose
+    #endif
 
     // MARK: - Resume Defaults
 
@@ -153,6 +157,10 @@ struct VideoPlayerSettingsView: View {
                     selectedButtonsBinding: $menuActionButtons
                 ))
             }
+
+            #if os(tvOS)
+            Toggle(L10n.confirmClose, isOn: $confirmClose)
+            #endif
         }
         .backport
         .onChange(of: barActionButtons) { _, newValue in

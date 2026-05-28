@@ -837,7 +837,11 @@ extension VideoPlayer {
             } else if containerState.isPresentingOverlay {
                 containerState.isPresentingOverlay = false
             } else {
-                containerState.isPresentingCloseConfirmation = true
+                if Defaults[.confirmClose] {
+                    containerState.isPresentingCloseConfirmation = true
+                } else {
+                    manager.stop()
+                }
             }
         }
         #endif
