@@ -34,6 +34,14 @@ struct CinematicBackgroundView: View {
                         .aspectRatio(contentMode: .fill)
                 }
             }
+            .onAppear {
+                // Seed the background with the initial item, since the focus-driven
+                // `select` in `CinematicItemSelector` doesn't fire until focus changes
+                // within the section. Routed through the view model so `removeDuplicates`
+                // suppresses the redundant update when focus lands on the first item.
+                guard viewModel.currentItem == nil, let initialItem else { return }
+                viewModel.select(item: initialItem)
+            }
     }
 
     class Proxy: ObservableObject {
