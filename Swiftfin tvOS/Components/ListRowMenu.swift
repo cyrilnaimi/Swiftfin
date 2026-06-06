@@ -11,8 +11,12 @@ import SwiftUI
 
 struct ListRowMenu<Content: View, Subtitle: View>: View {
 
+    #if DEBUG
     @Default(.isLiquidGlassEnabled)
     private var isLiquidGlassEnabled
+    #else
+    private let isLiquidGlassEnabled = false
+    #endif
 
     @FocusState
     private var isFocused: Bool

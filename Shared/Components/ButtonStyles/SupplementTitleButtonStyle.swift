@@ -14,8 +14,12 @@ extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerVi
     #if os(tvOS)
     struct SupplementTitleButtonStyle: ButtonStyle {
 
+        #if DEBUG
         @Default(.isLiquidGlassEnabled)
         private var isLiquidGlassEnabled
+        #else
+        private let isLiquidGlassEnabled = false
+        #endif
 
         @Environment(\.isFocused)
         private var isFocused
@@ -82,8 +86,12 @@ extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerVi
     #else
     struct SupplementTitleButtonStyle: PrimitiveButtonStyle {
 
+        #if DEBUG
         @Default(.isLiquidGlassEnabled)
         private var isLiquidGlassEnabled
+        #else
+        private let isLiquidGlassEnabled = false
+        #endif
 
         @Environment(\.isEnabled)
         private var isEnabled
