@@ -30,6 +30,20 @@ LOG="/tmp/swiftfin-deploy-$(date +%Y%m%d-%H%M%S).log"
 notify() { # notify <title> <message> — for terminal/launchd runs; no-op-safe
     osascript -e "display notification \"$2\" with title \"$1\" sound name \"Glass\"" 2>/dev/null || true
 }
+
+# Single-instance lock — a 2nd concurrent run would corrupt the build DB.
+# Locks older than 30 min are considered stale (crashed run) and stolen.
+LOCKDIR="/tmp/swiftfin-deploy.lock"
+if ! mkdir "$LOCKDIR" 2>/dev/null; then
+    if [[ -n $LOCKDIR(#qNmm+30) ]]; then
+        echo "stale lock (>30 min) — taking over" >&2
+        touch "$LOCKDIR"
+    else
+        echo "⏳ Un déploiement est déjà en cours — réessaie dans quelques minutes."
+        exit 1
+    fi
+fi
+trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
 on_error() {
     notify "Swiftfin deploy FAILED" "See $LOG"
     echo "❌ Swiftfin deploy FAILED — see $LOG"
