@@ -11,7 +11,11 @@
 #   - Xcode signed in to the Apple ID (Xcode > Settings > Accounts)
 #   - Apple TV paired (Xcode > Window > Devices and Simulators)
 #
-# Usage: scripts/deploy-appletv.sh
+# Usage: Scripts/deploy-appletv.sh
+#
+# Output contract: progress goes to stderr; stdout is a single final summary
+# line, so an Apple Shortcut can pipe it straight into a "Show Notification"
+# action ("Résultat du script shell" magic variable).
 #
 set -euo pipefail
 
@@ -23,12 +27,16 @@ PROJECT_DIR="${0:a:h:h}"
 DERIVED="$HOME/Library/Developer/Xcode/DerivedData/SwiftfinDeploy"
 LOG="/tmp/swiftfin-deploy-$(date +%Y%m%d-%H%M%S).log"
 
-notify() { # notify <title> <message>
-    osascript -e "display notification \"$2\" with title \"$1\" sound name \"Glass\"" || true
+notify() { # notify <title> <message> — for terminal/launchd runs; no-op-safe
+    osascript -e "display notification \"$2\" with title \"$1\" sound name \"Glass\"" 2>/dev/null || true
 }
-trap 'notify "Swiftfin deploy FAILED" "See $LOG"' ERR
+on_error() {
+    notify "Swiftfin deploy FAILED" "See $LOG"
+    echo "❌ Swiftfin deploy FAILED — see $LOG"
+}
+trap on_error ERR
 
-echo "==> [1/4] Clearing cached provisioning profiles for $BUNDLE_ID"
+echo "==> [1/4] Clearing cached provisioning profiles for $BUNDLE_ID" >&2
 for dir in \
     "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" \
     "$HOME/Library/MobileDevice/Provisioning Profiles"
@@ -37,12 +45,12 @@ do
     for f in "$dir"/*.mobileprovision(N); do
         if security cms -D -i "$f" 2>/dev/null | grep -q "$BUNDLE_ID"; then
             rm "$f"
-            echo "    removed $(basename "$f")"
+            echo "    removed $(basename "$f")" >&2
         fi
     done
 done
 
-echo "==> [2/4] Building $SCHEME ($CONFIG) — log: $LOG"
+echo "==> [2/4] Building $SCHEME ($CONFIG) — log: $LOG" >&2
 xcodebuild \
     -project "$PROJECT_DIR/Swiftfin.xcodeproj" \
     -scheme "$SCHEME" \
@@ -50,13 +58,16 @@ xcodebuild \
     -destination "generic/platform=tvOS" \
     -derivedDataPath "$DERIVED" \
     -allowProvisioningUpdates \
-    build >"$LOG" 2>&1 || { echo "BUILD FAILED — last 30 lines:"; tail -30 "$LOG"; exit 1; }
+    build >"$LOG" 2>&1 || { tail -30 "$LOG" >&2; false; }
 
 APP="$DERIVED/Build/Products/$CONFIG-appletvos/$SCHEME.app"
 
-echo "==> [3/4] Installing to Apple TV ($DEVICE_ID)"
-xcrun devicectl device install app --device "$DEVICE_ID" "$APP"
+echo "==> [3/4] Installing to Apple TV ($DEVICE_ID)" >&2
+xcrun devicectl device install app --device "$DEVICE_ID" "$APP" >&2
 
 EXPIRY="$(date -v+7d '+%A %d %B %H:%M')"
-echo "==> [4/4] Done. Profile valid until $EXPIRY."
+echo "==> [4/4] Done. Profile valid until $EXPIRY." >&2
 notify "Swiftfin deployed to Apple TV ✅" "Valid until $EXPIRY"
+
+# The ONLY stdout line — becomes the Shortcut's notification body.
+echo "✅ Déployé sur l'Apple TV — valide jusqu'au $EXPIRY"
