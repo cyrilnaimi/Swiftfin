@@ -34,10 +34,12 @@ struct CinematicItemSelector<Item: Poster>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
 
-            if let focusedPoster, let focusedItem = focusedPoster._poster as? Item {
-                topContent(focusedItem)
+            // Fall back to the first item so the hero isn't blank before
+            // focus first enters the section (matches the backdrop seeding).
+            if let displayedItem = (focusedPoster?._poster as? Item) ?? items.first {
+                topContent(displayedItem)
                     .eraseToAnyView()
-                    .id(focusedItem.hashValue)
+                    .id(displayedItem.hashValue)
                     .transition(.opacity)
             }
 
