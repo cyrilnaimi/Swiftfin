@@ -24,7 +24,11 @@ struct CinematicBackgroundView: View {
         RotateContentView(proxy: proxy)
             .onChange(of: viewModel.currentItem) { _, newItem in
                 proxy.update {
-                    ImageView(newItem?.cinematicImageSources(maxWidth: nil) ?? [])
+                    // NOTE: `quality` must be passed explicitly: a one-argument call
+                    // resolves to the `[]` default in the `Poster` protocol extension
+                    // (statically dispatched) instead of `AnyPoster`'s forwarding
+                    // witness, which silently blanks the backdrop.
+                    ImageView(newItem?.cinematicImageSources(maxWidth: nil, quality: nil) ?? [])
                         .placeholder { _ in
                             Color.clear
                         }
