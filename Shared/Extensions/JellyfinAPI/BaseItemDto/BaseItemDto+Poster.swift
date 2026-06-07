@@ -90,10 +90,13 @@ extension BaseItemDto: Poster {
         switch type {
         case .episode:
             if Defaults[.Customization.Episodes.useSeriesLandscapeBackdrop] {
+                // Series art first, episode still as last resort — matches
+                // 1.x behavior; the appletv-stack rewrite inverted the order,
+                // surfacing unrecognizable episode thumbnails everywhere.
                 [
-                    imageSource(.primary, maxWidth: maxWidth, quality: quality),
                     seriesImageSource(.thumb, maxWidth: maxWidth, quality: quality),
                     seriesImageSource(.backdrop, maxWidth: maxWidth, quality: quality),
+                    imageSource(.primary, maxWidth: maxWidth, quality: quality),
                 ]
             } else {
                 [imageSource(.primary, maxWidth: maxWidth, quality: quality)]
