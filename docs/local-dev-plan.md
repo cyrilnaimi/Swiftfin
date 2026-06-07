@@ -216,7 +216,17 @@ Run via a multi-agent code-review pass on `f122abb9..HEAD`. Findings grouped:
 
 ## Next session — pick-up checklist
 
-State at pause (2026-05-26 late evening, after second pass):
+### State at pause (2026-06-07 — P8.1 committed, verification pending server)
+
+- Branch `local/appletv-dev`, clean tree, HEAD = `bf12d2e9 fix(tvOS): P8.1 — restore cinematic hero when no Resume items`. tvOS **Release** build verified at this commit.
+- **P8.1 verification on a live server is PENDING — the Jellyfin server (`http://192.168.50.154:8096`) was OFF.** What must be checked when it's back (user photos `screens/IMG_0665.jpeg` = official 1.0.1 reference, `IMG_0666.jpeg` = local pre-fix bug):
+  1. **Hero present with the backdrop PICTURE** (not title-on-black — that was the P7.1 bug, fix `73f50da8` never visually confirmed: user reported the hero *entirely gone* on the P7 deploy, so the seeded backdrop has never been seen working on hardware).
+  2. **User insists they ALWAYS have Continue Watching items** — yet the P7-deploy home opened on Next Up with no hero. `CinematicResumeView` gate is `resumeItems.isNotEmpty`; `HomeViewModel`/`CinematicItemSelector` are byte-identical to upstream. **Unexplained.** If after P8.1 the hero shows Recently Added while the server really has resume items, dig into `getResumeItems` response on that server (mediaTypes `[.video]`, limit 20) vs what official 1.0.1 displays.
+  3. Recently-added fallback hero when no resume items (the P8.1 restore), rows reachable below it, and no Recently-Added row duplication.
+- Verification path prepared this session: sim `68CB155B-…` has a **fresh install** of the `bf12d2e9` Debug build sitting on the "Se connecter" screen (old install wiped — it had the documented stale-keychain crash, `UserSession.init` fatalError; crash report `Swiftfin tvOS-2026-06-07-114258.ips` — known issue, NOT a P8.1 regression). Fallback when local server is off: `https://demo.jellyfin.org/stable`, user `demo`, empty password (was about to drive sign-in via AppleScript key events when paused).
+- After verification passes on the real server: run `scripts/deploy-appletv.sh` (or the "Swiftfin.local update" Shortcut) to push to the Apple TV.
+
+### Previous pause (2026-05-26 late evening, after second pass):
 
 - Current branch: `local/appletv-dev`, **working tree dirty** with the P5.1–P5.9 fixes uncommitted (see "uncommitted changes" below)
 - Last commit: `23252324 fix(tvOS): restore navigationBarCloseButton + L10n.by (second audit)`
