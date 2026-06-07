@@ -11,13 +11,13 @@ import SwiftUI
 
 extension HomeView {
 
-    struct CinematicRecentlyAddedView: View {
+    struct CinematicNextUpView: View {
 
         @Router
         private var router
 
         @ObservedObject
-        var viewModel: RecentlyAddedLibraryViewModel
+        var viewModel: NextUpLibraryViewModel
 
         private func itemSelectorImageSource(for item: BaseItemDto) -> ImageSource {
             if item.type == .episode {
@@ -36,8 +36,8 @@ extension HomeView {
         }
 
         var body: some View {
-            // Cap the hero strip: the shared view model pages 50 items at a
-            // time, which is far too many to scrub through in a hero selector.
+            // Cap the hero strip: a hero selector should only surface the
+            // next few episodes, not the view model's whole first page.
             CinematicItemSelector(items: Array(viewModel.elements.elements.prefix(10))) { item in
                 router.route(to: .item(item: item))
             }
@@ -54,6 +54,21 @@ extension HomeView {
                     .edgePadding(.leading)
                     .aspectRatio(contentMode: .fit)
                     .frame(height: 200, alignment: .bottomLeading)
+            }
+            .content { item in
+                // Series title + SxEx only — same info as the regular
+                // Next Up row, never the episode name/still.
+                VStack(alignment: .leading) {
+                    Text(item.seriesName ?? item.displayTitle)
+                        .font(.footnote.weight(.regular))
+                        .foregroundColor(.primary)
+                        .lineLimit(1, reservesSpace: true)
+
+                    Text(item.seasonEpisodeLabel ?? .emptyDash)
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1, reservesSpace: true)
+                }
             }
         }
     }
