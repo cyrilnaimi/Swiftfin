@@ -13,40 +13,72 @@ import SwiftUI
 
 struct HomeView: View {
 
-    @Router
-    private var router
-
     @StateObject
     private var viewModel = HomeViewModel()
 
-    @Default(.Customization.Home.showRecentlyAdded)
-    private var showRecentlyAdded
+    /// Layout strategy:
+    ///
+    /// - When the user has Resume items, keep the tvOS-signature cinematic
+    ///   hero at the top (`CinematicResumeView`) followed by stacked rows.
+    /// - Otherwise, promote Next Up to the hero (`CinematicNextUpView`) —
+    ///   the closest thing to "continue watching" when nothing is mid-play.
+    /// - Otherwise, fall back to a cinematic Recently Added hero — but only
+    ///   when it actually has items: `CinematicItemSelector` renders its
+    ///   full-screen frame even when empty, which pushed every subsequent
+    ///   row off-screen on fresh accounts and made the home look blank.
+    /// - With no hero at all, render only the stacked poster rows.
+    ///
+    /// Whichever section is promoted to the hero is skipped in the stacked
+    /// rows so its items never appear twice. The global Recently Added row
+    /// is never rendered as a row at all — it duplicates the per-library
+    /// "Latest in" rows; it only survives as the last-resort hero.
+    ///
+    /// This is a separate struct (not a `contentView` property) so it can
+    /// observe the section view models directly — their items arrive after
+    /// `HomeViewModel.state` flips to `.content`, and `HomeView` itself only
+    /// re-renders on `HomeViewModel` changes.
+    private struct ContentView: View {
 
-    @ViewBuilder
-    private var contentView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+        @ObservedObject
+        var viewModel: HomeViewModel
 
-                if viewModel.resumeItems.isNotEmpty {
-                    CinematicResumeView(viewModel: viewModel)
+        @ObservedObject
+        var nextUpViewModel: PagingLibraryViewModel<NextUpLibrary>
 
-                    NextUpView(viewModel: viewModel.nextUpViewModel)
+        @ObservedObject
+        var recentlyAddedViewModel: PagingLibraryViewModel<RecentlyAddedLibrary>
 
-                    if showRecentlyAdded {
-                        RecentlyAddedView(viewModel: viewModel.recentlyAddedViewModel)
+        @Default(.Customization.Home.showRecentlyAdded)
+        private var showRecentlyAdded
+
+        var body: some View {
+            let hasResumeHero = viewModel.resumeItems.isNotEmpty
+            let hasNextUpHero = !hasResumeHero && nextUpViewModel.elements.isNotEmpty
+            let hasRecentlyAddedHero = !hasResumeHero && !hasNextUpHero && showRecentlyAdded && recentlyAddedViewModel
+                .elements.isNotEmpty
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 30) {
+
+                    if hasResumeHero {
+                        CinematicResumeView(viewModel: viewModel)
+                    } else if hasNextUpHero {
+                        CinematicNextUpView(viewModel: nextUpViewModel)
+                    } else if hasRecentlyAddedHero {
+                        CinematicRecentlyAddedView(viewModel: recentlyAddedViewModel)
                     }
-                } else {
-                    if showRecentlyAdded {
-                        CinematicRecentlyAddedView(viewModel: viewModel.recentlyAddedViewModel)
+
+                    // skip the row when Next Up is already the hero
+                    if !hasNextUpHero {
+                        NextUpView(viewModel: nextUpViewModel)
                     }
 
-                    NextUpView(viewModel: viewModel.nextUpViewModel)
-                        .safeAreaPadding(.top, 150)
+                    ForEach(viewModel.libraries) { viewModel in
+                        LatestInLibraryView(viewModel: viewModel)
+                    }
                 }
-
-                ForEach(viewModel.libraries) { viewModel in
-                    LatestInLibraryView(viewModel: viewModel)
-                }
+                .padding(.top, hasResumeHero || hasNextUpHero || hasRecentlyAddedHero ? 0 : 130)
+                .padding(.bottom, 60)
             }
         }
     }
@@ -57,7 +89,11 @@ struct HomeView: View {
 
             switch viewModel.state {
             case .content:
-                contentView
+                ContentView(
+                    viewModel: viewModel,
+                    nextUpViewModel: viewModel.nextUpViewModel,
+                    recentlyAddedViewModel: viewModel.recentlyAddedViewModel
+                )
             case let .error(error):
                 ErrorView(error: error)
             case .initial, .refreshing:
