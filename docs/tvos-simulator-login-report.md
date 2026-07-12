@@ -27,7 +27,7 @@ if let accessToken = Container.shared.keychainService().get("\(id)-accessToken")
 #if targetEnvironment(simulator)
 // Local-only workaround: simulator keychain rejects writes without
 // a keychain-access-groups entitlement, so fall back to a dev API key.
-return "b127840fe9c84798b8edc7f846bfac2c"
+return "<redacted-api-key>"
 #else
 assertionFailure("access token missing in keychain")
 return ""
@@ -38,7 +38,7 @@ The comment correctly identifies the *symptom* (simulator keychain rejects write
 
 ## 2. Why this workaround is not acceptable
 
-1. **Leaked credential in source.** `b127840fe9c84798b8edc7f846bfac2c` is a real Jellyfin API key tied to whoever generated it. Once it lands in git history, treat it as compromised. It should be rotated/deleted on that server.
+1. **Leaked credential in source.** `<redacted-api-key>` is a real Jellyfin API key tied to whoever generated it. Once it lands in git history, treat it as compromised. It should be rotated/deleted on that server.
 2. **Compile flag is too broad.** `#if targetEnvironment(simulator)` fires on the **iOS simulator** as well as the tvOS simulator, even though the problem only exists on the tvOS target (see §3). Anyone running the iOS simulator without a saved user will silently authenticate as some unknown remote account.
 3. **It does not fix login.** It only patches the *read* path of `accessToken`. The keychain `set` still silently fails on simulator, so a fresh `signIn` round-trip still won't persist between launches; users will see the login screen again next launch and get pushed back onto the hardcoded key.
 4. **It is gated by user id.** The accessor is `Container.shared.keychainService().get("\(id)-accessToken")`. The fallback ignores `id` entirely and returns the same key for every user object — anything stamped through `UserState` ends up acting as a single ghost account.
@@ -178,7 +178,7 @@ What changed:
 
 Verification (sim — 2026-05-27, Apple TV 4K 3rd gen, tvOS 26.2):
 
-- Cold launch → connect to `http://192.168.50.154:8096` → sign in as `lgtv/lgtv` → token written to keychain.
+- Cold launch → connect to `http://192.168.50.154:8096` → sign in as `<user>/<pass>` → token written to keychain.
 - `xcrun simctl terminate org.jellyfin.swiftfin.local` → `xcrun simctl launch …` → app **resumes signed in**, no `-34018` and no `assertionFailure`. The previously-reported login-loss-on-relaunch is gone.
 
 ### Empty `.xcent` caveat (not a regression)

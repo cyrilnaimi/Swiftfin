@@ -48,7 +48,7 @@ Approximately 800 files showed as modified due to SwiftFormat auto-running on op
 - [ ] Create `Swiftfin tvOS/Resources/Swiftfin tvOS.entitlements` with `keychain-access-groups`
 - [ ] Edit `Swiftfin.xcodeproj/project.pbxproj`: add `CODE_SIGN_ENTITLEMENTS` for Debug + Release of the tvOS target
 - [ ] Revert `SwiftinStore+UserState.swift` to upstream — delete the simulator fallback + hardcoded key
-- [ ] Build sim Debug, sign in with `lgtv/lgtv`, confirm token persists
+- [ ] Build sim Debug, sign in with `<user>/<pass>`, confirm token persists
 - [ ] Verify via `codesign -d --entitlements :- "<app>"` — should show `application-identifier` + `keychain-access-groups`
 - [ ] Commit: `fix(tvOS): add CODE_SIGN_ENTITLEMENTS so keychain works on simulator`
 
@@ -114,7 +114,7 @@ Expected conflicts (from earlier abort):
 | P4.2 | ✅ done | `cd550694` | UI audit fix: filter pills now use `Color.secondarySystemFill` + `.card` (drops the brightness focus hack), wire `.tint(accentColor)` so active pills pick up the user accent, use `.firstTextBaseline` alignment, fix `safeAreaPadding`→`padding` bug on the inset host. |
 | P4.3 | ✅ done | `50971ebb` | Post-merge build-error fixes: removed duplicate `NavigationRoute.filter(...)` / `navigationBarCloseButton(...)` / `FilterView.swift`, `hasFilters` → `isNotEmpty`, `.send(.reset())` → `.reset(filterType: nil)`, added missing `rememberFiltering` / `rememberFilteringFooter` keys to `en.lproj/Localizable.strings`. **`xcodebuild` BUILD SUCCEEDED** at this commit. |
 | P4.4 | ✅ done | `23252324` | Second-audit fixes: restored the *real* `navigationBarCloseButton` impl on tvOS (`50971ebb` incorrectly removed it and left only the no-op stub, breaking Close on every tvOS sheet); re-added `"by"` localization key (had been hardcoded as a literal in `cd550694`). **`xcodebuild` BUILD SUCCEEDED** at this commit. |
-| P5 | 🟡 in progress | — | First reinstall+launch at `23252324` crashed on UserSession.init → keychain assertionFailure (stale CoreData from `50971ebb`'s hack-era install). Wiping app + rebuilding fixed the launch path. Sign-in flow exercised by user with `lgtv/lgtv` against `http://192.168.50.154:8096` (server "M1Center"). Surfaced 6 follow-up issues (see P5 audit) — being fixed in P5.1+. |
+| P5 | 🟡 in progress | — | First reinstall+launch at `23252324` crashed on UserSession.init → keychain assertionFailure (stale CoreData from `50971ebb`'s hack-era install). Wiping app + rebuilding fixed the launch path. Sign-in flow exercised by user with `<user>/<pass>` against `http://192.168.50.154:8096` (server "M1Center"). Surfaced 6 follow-up issues (see P5 audit) — being fixed in P5.1+. |
 | P5.1 | ✅ done | `1a2ac2a3` | **Multi-pill library filter UI restored.** `LibraryHeader.swift` rewritten to iterate `enabledDrawerFilters` and render one pill per `ItemFilterType` (Genres, Lettre, Tri, Tags, Filtres, Années) — matches iOS `NavigationBarFilterDrawer` pattern. Active pills tint to accent color; each opens its own selector sheet via `.filter(type:, viewModel:)`. Reset pill added when any filter is active. Previous single "Tout" pill is gone. |
 | P5.2 | ✅ done | `1a2ac2a3` | **Doubled title fixed.** `PagingLibraryView.swift` no longer sets `.navigationTitle(...)` — the `LibraryHeader` already renders the title + count inline, and the platform's auto nav-title was overlapping the grid. Single source of truth now. |
 | P5.3 | ✅ done | `1a2ac2a3` | **Duplicate "Favoris" in Traits sheet fixed.** Root cause: French `Translations/fr.lproj/Localizable.strings` mapped both `favorites` and `likedItems` to `"Favoris"`. Changed `likedItems` → `"Aimés"` so `.isFavorite` and `.likes` are visually distinct. (File is UTF-16; edited via Python `codecs.open`.) |
@@ -153,7 +153,7 @@ Legend: ✅ done · 🟡 in progress · 🔴 blocked · ⚪ pending
 
 ### P5 audit findings (2026-05-26 session — first user sim test)
 
-User signed in to the booted sim against `http://192.168.50.154:8096` (`lgtv/lgtv`) and surfaced six issues — five fixed in P5.1–P5.5 above, one (Home empty) still under investigation as P5.6.
+User signed in to the booted sim against `http://192.168.50.154:8096` (`<user>/<pass>`) and surfaced six issues — five fixed in P5.1–P5.5 above, one (Home empty) still under investigation as P5.6.
 
 1. **Filter UI minimal** — Library header showed a single "Tout" pill instead of one pill per filter type (compared to iOS `NavigationBarFilterDrawer`). → Fixed in P5.1: iterate `enabledDrawerFilters` and render one `FilterPillButton` per type.
 2. **Library layout broken** — "Films" title appeared twice (once in `LibraryHeader`, once via `.navigationTitle(...)`); the auto-rendered nav title overlapped the poster grid. → Fixed in P5.2: dropped `.navigationTitle(...)` on tvOS only (the in-header `Text(title)` is the canonical source).
@@ -214,7 +214,7 @@ Run via a multi-agent code-review pass on `f122abb9..HEAD`. Findings grouped:
 
 ## Out of scope / out of band
 
-- **Rotate the leaked API key on the Jellyfin server** ✅ done by user. The key was `b127840f…`; it appeared in a working-tree patch only and will not enter any commit on this branch.
+- **Rotate the leaked API key on the Jellyfin server** ✅ done by user. The key was `<redacted-api-key>`; it appeared in a working-tree patch only and will not enter any commit on this branch.
 - **Upstream PR**: if the team wants, the Phase 1 commit (`167628b7`, keychain fix) is a strong candidate for a small focused upstream PR — high value, low risk, likely closes multiple long-standing tvOS issues.
 - **Outstanding `Localizable.strings` keys**: ~26 #1770-only keys are not in the merged en.lproj. They have runtime fallbacks via `Strings.swift`, so the UI works in English but other locales show key names. Not blocking; add as a follow-up if you want clean translations.
 
@@ -227,9 +227,9 @@ Run via a multi-agent code-review pass on `f122abb9..HEAD`. Findings grouped:
 - Branch `local/appletv-dev`, clean tree, HEAD = `f8c3b8ff` (P8.2–P8.5). Debug verified live on sim; Release build re-verified at HEAD.
 - **The P8 open questions are all answered:**
   1. "Hero title-on-black" → was the P8.2 dispatch trap; backdrop picture now renders (verified, `/tmp/swiftfin-sim/p8-12-series-art.png`).
-  2. "User always has Continue Watching items" → **server says no**: `/Users/{id}/Items/Resume?mediaTypes=Video&limit=20` returns `TotalRecordCount: 0` for `lgtv` while Next Up has 11 — the P7-deploy behavior was data-correct. (If the real Apple TV uses a different account, re-check there.) The Next Up hero now covers exactly this case.
+  2. "User always has Continue Watching items" → **server says no**: `/Users/{id}/Items/Resume?mediaTypes=Video&limit=20` returns `TotalRecordCount: 0` for `<user>` while Next Up has 11 — the P7-deploy behavior was data-correct. (If the real Apple TV uses a different account, re-check there.) The Next Up hero now covers exactly this case.
   3. Hero fallback + row layout → reworked per user spec in P8.4.
-- Sim `68CB155B-…` has the final P8 Debug build installed, signed in to M1Center (`lgtv`).
+- Sim `68CB155B-…` has the final P8 Debug build installed, signed in to M1Center (`<user>`).
 - **NEXT STEP: deploy to the Apple TV** — `Scripts/deploy-appletv.sh` or the "Swiftfin.local update" Shortcut — then verify on hardware: Next Up hero with series backdrop + logo, series 16:9 cards w/ title+SxEx, "Anime récents…" rows below, and (once something is mid-play) Continue Watching hero with À suivre row below it.
 - AppleScript key events to the sim are blocked by macOS Accessibility (`osascript … 1002`) — grant Accessibility to the terminal if scripted UI driving is needed next time.
 
@@ -343,7 +343,7 @@ f5aeb5b6 chore: bump CollectionVGrid to e5b869c
    ```
    If the working tree was reset and rebuild is needed: see "If the build needs a fresh start" below.
 
-2. **Verify P5.1 (multi-pill filter UI):** Sign in (`lgtv`/`lgtv` against `http://192.168.50.154:8096`). Open Films or any library. Confirm the header now shows multiple filter pills (Genres, Lettre, Tri, Tags, Filtres, Années) instead of a single "Tout" pill. Each pill should be tappable and open its own selector sheet.
+2. **Verify P5.1 (multi-pill filter UI):** Sign in (`<user>`/`<user>` against `http://192.168.50.154:8096`). Open Films or any library. Confirm the header now shows multiple filter pills (Genres, Lettre, Tri, Tags, Filtres, Années) instead of a single "Tout" pill. Each pill should be tappable and open its own selector sheet.
 
 3. **Verify P5.2 (no doubled title):** The library title ("Films") should appear ONCE in the header, not also as a big centered title overlapping the grid.
 
