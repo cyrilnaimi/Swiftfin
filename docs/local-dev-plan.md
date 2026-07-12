@@ -1,5 +1,7 @@
 # Local Dev Plan — `local/appletv-dev`
 
+> **2026-07-12 — v2 upstream-rebuild in progress on branch `local/appletv-dev-v2`.** The migration plan from "Upstream Re-architecture & Reapply Plan" (below) is being executed. **M0–M6 done and building (Debug + Release green); M7 (on-device parity + cutover) pending user verification.** See the "v2 migration progress log" section at the very end of this file. `local/appletv-dev` remains the shipping branch until M7 cutover.
+
 Consolidate local work into a clean dev branch, fix the real keychain root cause, and merge PR #1902 + #1882 (the appletv-stack player work) on top.
 
 **Companion report:** [`tvos-simulator-login-report.md`](./tvos-simulator-login-report.md) — root cause for the simulator login failure.
@@ -487,3 +489,35 @@ Authorship blocks map onto categories:
 - **Dependency order:** M1 → M2 → (M3, M4) ; M5 independent; do M0 first, M6/M7 last.
 - **Rollback:** anytime, `git checkout local-working-2026-07-12-P9`. `local/appletv-dev` stays the shipping branch until M7 cutover.
 - **Definition of done:** v2 on fresh upstream reaches feature parity with the P9 build (green icon, keychain filter persistence, tvOS multi-pill filters, unplayed sticks from main-bar + Média, P8 home/hero, new player) — verified on the Apple TV — with zero re-applied obsolete patches.
+
+---
+
+# v2 migration progress log (branch `local/appletv-dev-v2`, started 2026-07-12)
+
+Branch `local/appletv-dev-v2` off `sync/upstream-base` (= `upstream/main` `1dfbb7a1`). Every phase gated on a green tvOS build. **Toolchain note: all builds require `-skipMacroValidation`** (upstream's new `StatefulMacros` package fails `ComputeTargetDependencyGraph` in non-interactive xcodebuild otherwise). Baked into `Scripts/deploy-appletv.sh`.
+
+| Phase | Status | Commit | Notes |
+|---|---|---|---|
+| Baseline | ✅ | — | Fresh `upstream/main` builds in our toolchain (Debug + Release) with `-skipMacroValidation`. |
+| M0 base + local-distinction | ✅ | `17b3aabc` | Green `App Icon Local` brandassets, `CFBundleDisplayName`, entitlements wired (Debug/Release), deploy script (+skipMacroValidation), `.gitignore`, docs. **Personal team id / `.cnaimi` bundle kept in gitignored `DevelopmentTeam.xcconfig`, NOT committed** (cleaner than old branch). `Shared.xcconfig` `#include? DevelopmentTeam.xcconfig` gives `.local` bundle id automatically; only app-icon name + entitlements needed pbxproj patches. Builds, launches, green icon compiled. |
+| M1 keychain filters | ✅ | `0bd7e7a9` | **Easier than estimated** — upstream had converged on the same `_StoredValueObservable` design. Added `.keychain` `StorageDestination` + `_keychainKey` + get/set + `KeychainObservable`; `libraryFilters(parentID:)` → `storage: .keychain`. |
+| M2 filter feature | ✅ | `62a0fd04` | Upstream `ItemLibrary` only persisted sortBy/sortOrder. Restore + persist the FULL set (genres/letter/tags/traits/years too), unconditional (dropped the `rememberSort` gate — same reasoning as old branch); `itemTypes` deliberately not persisted. Re-added `.isPlayed`/`.isUnplayed` mutual exclusion. Live filtering already worked via the reactive `currentFilters→environment` push. |
+| M3 tvOS filter UI | ✅ | `30b0b57f` | Upstream ships **no tvOS filter UI**. New `Swiftfin tvOS/Components/LibraryHeader.swift` (multi-pill capsule drawer, accent tint, reset pill, `NavigationRoute.filter`), mounted via `.safeAreaInset(.top)` in `ItemLibraryBody`'s `#if os(tvOS)` branch + `.toolbar(.hidden)` so the header title is canonical (avoids P5.2 double-title), localized to ItemLibrary. Title+pills (count dropped — no server total exposed). |
+| M4 main-bar P9 fix | ✅ | `d42ed301` | Stable `parentID` (`tab-tvshows`/`tab-movies`) threaded through `TabItem.library` → `BaseItemDto(id:name:)`. `type==nil` → `makeBaseItemParameters` default case injects no `parentID`, so aggregate query unchanged; only the persistence key resolves. |
+| M5 home/hero | ✅ | `18e51003` | New `CinematicNextUpView` on `PagingLibraryViewModel<NextUpLibrary>` + new image API; `HomeView` `ContentView` sub-struct (late-arrival fix), hero fallback Resume→NextUp→RecentlyAdded (each non-empty gated), no duplicate Recently Added row, 10-item cap. P8.5 series-art NOT re-applied (already upstream). |
+| M6 verify-then-skip | ✅ | — (no code) | Confirmed upstream already has: `confirmClose` gate, `isLiquidGlassEnabled` `#available` guard, no unguarded `debugBackground` call sites, tvOS `navigationBarCloseButton`. CollectionVGrid pin already `e5b869c`. **Release build green** with none of the obsolete patches. |
+| M7 parity + cutover | ⏳ pending user | — | Needs the Jellyfin server + Apple TV remote (tvOS UI driving is blocked here). Checklist below. |
+
+## M7 — on-device verification checklist (user)
+
+Build/run v2: `git checkout local/appletv-dev-v2` then build the `Swiftfin tvOS` scheme (Xcode, or `xcodebuild … -skipMacroValidation`). Sign in to the server, then verify:
+
+1. **Green icon + "Swiftfin Local"** on the tvOS home screen, coexisting with App Store Swiftfin.
+2. **Filter pills** appear on Films / Séries TV (top bar) and on Média → any library: Genres, Lettre, Tri, Étiquettes, Filtres, Années. Each opens its selector.
+3. **Unplayed sticks from the main bar** (the original P9 bug): on Films, set Filtres → Non lu; leave the tab and come back → still applied; kill + relaunch → still applied. Same on the Média-tab libraries.
+4. **Played/unplayed mutual exclusion**: selecting one clears the other.
+5. **Filters survive reinstall** (keychain / M1): set a filter, redeploy/reinstall, relaunch → still applied.
+6. **Home**: Continue Watching hero when mid-play; else À suivre (Next Up) hero; per-library "récents" rows; no duplicate global Recently Added; never blank.
+7. **New player** opens and plays (upstream #1902, now native upstream).
+
+If all pass: tag `local-working-<date>-v2`, then make v2 the shipping branch (e.g. rename `local/appletv-dev` → `local/appletv-dev-legacy`, `local/appletv-dev-v2` → `local/appletv-dev`), keeping the old tags/branch as fallback. Deploy via `Scripts/deploy-appletv.sh`.
