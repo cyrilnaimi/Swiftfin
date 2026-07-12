@@ -414,3 +414,76 @@ So from the main-bar tabs the chosen filter is never saved or restored, while fr
 **Recommended sync path (when we choose to do it — medium/high effort, NOT started):** rebuild on a fresh `upstream/main`, *drop* the now-obsolete #1882/#1902 import commits, cherry-pick the conflict-free local-distinction commits (`b628bfea`, deploy-script chain, `4cd7c1f9`), then **re-author the #1770 filter feature + P8 home/hero polish on top of the new #2047 architecture**. That re-authoring is the real cost.
 
 **Decision for now:** stay pinned on the known-good build (tagged). No merge/rebase performed this session. Re-evaluate a deliberate sync sweep as its own project.
+
+---
+
+# Upstream Re-architecture & Reapply Plan (drafted 2026-07-12)
+
+> Complete review + plan for porting our work onto upstream's rewritten architecture and reapplying all our UI polish for a clean result. **No code written for this plan yet** — it is the map for a future dedicated effort. Tags `local-working-2026-07-12-P8` (pre-P9) and `local-working-2026-07-12-P9` (with the main-bar filter fix) are the restore points. A read-only reference branch **`sync/upstream-base`** tracks `upstream/main` (`1dfbb7a1`).
+
+## A. Home-page comparison finding — ours is still the better UX
+
+Upstream did **not** redesign the tvOS home page. `upstream/main:Swiftfin tvOS/Views/HomeView/HomeView.swift` is essentially the **pre-P8 baseline we started from**, and it still carries the bugs we fixed. What upstream changed is the *plumbing beneath* the home (generic paging VMs, FactoryKit, image API) — not the layout.
+
+| Aspect | Ours (P8, `local/appletv-dev`) | Upstream `main` |
+|---|---|---|
+| Hero when nothing is mid-play | `CinematicNextUpView` (Next Up promoted to hero) | none — drops straight to a Recently Added hero |
+| Blank-home bug (zero-resume / fresh account) | **fixed** — hero gated on `.elements.isNotEmpty` | **still present** — `CinematicItemSelector` renders its full-screen frame even when empty, pushing rows off-screen |
+| Duplicate global "Recently Added" row | **removed** (duplicated per-library "Latest in" rows) | still rendered as a row |
+| Late-arrival re-render (hero intermittently blank) | **fixed** — `ContentView` observes child VMs directly | latent bug — observes only `HomeViewModel` |
+| Hero strip length | capped at 10 | scrubs all 50 paged items |
+| Episode landscape art (series-art-first) | ours (P8.5) | **already upstream** — `BaseItemDto+Poster.swift:94-99` does series-thumb→backdrop→episode-primary gated on `environment.useParent` (= our `useSeriesLandscapeBackdrop` default) |
+
+**Verdict:** keep ours for UX. But our home components sit on the **old** data/image stack, so they've drifted — the P8 polish must be **re-ported onto upstream's new stack**, not merged. (Exception: P8.5 series-art ordering is effectively already upstream — verify, likely drop.)
+
+## B. New-architecture reference (where each concept now lives on `upstream/main`)
+
+| Concept | OLD (local/appletv-dev) | NEW (upstream/main) |
+|---|---|---|
+| Generic paging VM | `Shared/ViewModels/LibraryViewModel/PagingLibraryViewModel.swift` (concrete subclasses) | `Shared/Objects/PagingLibrary/PagingLibraryViewModel.swift` — `PagingLibraryViewModel<Library: PagingLibrary>`, `@Stateful(conformances:[WithRefresh.self])` |
+| "Library" abstraction | n/a (baked into VM subclasses) | `Shared/Objects/PagingLibrary/PagingLibrary.swift` protocol + `Shared/Objects/Libraries/*.swift` value types (`ItemLibrary`, `LatestInLibrary`, `NextUpLibrary`, `RecentlyAddedLibrary`) |
+| Request building (filters/parentID/itemTypes) | `ItemLibraryViewModel.itemParameters` + `LibraryParent.setParentParameters` | `ItemLibrary.makeBaseItemParameters(environment:)` (`Shared/Objects/Libraries/ItemLibrary.swift:160`) + `attachFilters(to:using:)` (`:206`) |
+| Main library view | `Swiftfin tvOS/Views/PagingLibraryView/PagingLibraryView.swift` (tvOS-specific) | `Shared/Objects/PagingLibrary/PagingLibraryView/PagingLibraryView.swift` (shared, generic) → `library.makeLibraryBody(...)` |
+| tvOS filter drawer/header | `Swiftfin tvOS/.../Components/LibraryHeader.swift` (our multi-pill UI) | **gone** — no tvOS filter UI upstream. Hook point = `ItemLibrary.swift:297` `#if os(tvOS)` branch (currently only a blurred background) inside `ItemLibraryBody` (`:248`) |
+| FilterViewModel / ItemFilterCollection / ItemFilterType | same paths | **same paths, same API** (only DI/`send` cosmetic diffs). `traits` still carries `isUnplayed`; reaches request via `attachFilters` `parameters.filters = filters.traits` |
+| Filter persistence key | `StoredValues+User.swift:142` `libraryFilters(parentID:)` (+ our `storage:.keychain`) | `StoredValues+User.swift:126` **identical keying**, default CoreStore backing (no keychain) |
+| Movies/TV main-bar tabs | `TabItem.library(…, parentID:)` (our stable-id fix) | `TabItem.swift:57` `library(title:systemName:filters:)` → `ItemLibrary(parent: BaseItemDto(name: title))` → **nil id** |
+| Home NextUp hero | `Components/CinematicNextUpView.swift` (ours) | absent — recreate |
+| Episode landscape art | `BaseItemDto+Poster.swift` `seriesImageSource(...)` | `BaseItemDto+Poster.swift:89` `@ImageSourceBuilder landscapeImageSources(environment:)`, `environment.useParent` |
+| Video-player chrome dir | `Components/NavigationBar/` | `Components/Toolbar/` (renamed) |
+| DI | `import Factory` (66 files) | `import FactoryKit` (mechanical rename) |
+| VM action dispatch | `viewModel.send(.refresh)` | migrated VMs → `viewModel.refresh()` / `await viewModel.refresh()`; `HomeViewModel` still classic `.send(...)` |
+
+**Key porting facts:**
+- The P9 nil-id filter-persistence bug **still exists upstream** (`TabItem.swift:69` builds `BaseItemDto(name: title)`, no id). Our fix re-attaches by giving that parent a stable id (`"tab-movies"`/`"tab-tvshows"`); since `type` stays nil, query semantics are unchanged, only the persistence key resolves.
+- Three of our cross-cutting fixes are **now redundant/obsolete upstream** — do NOT re-apply: `confirmClose` gate (upstream `VideoPlayerContainerView.swift:873`), `isLiquidGlassEnabled` guard (upstream has real `#available` guards), `debugBackground` Release fix (no unguarded call sites upstream).
+
+## C. Commit inventory (393 ahead) → disposition
+
+Authorship blocks map onto categories:
+
+- **KEEP-AS-IS (local-distinction, conflict-free cherry-picks) — ~15 commits:** icon/rename `b628bfea`; signing `3b555d81`, `167628b7`; deploy script `b75cc27c`+`b18422bd`+`43f6fcc9` (squash); `4cd7c1f9` gitignore; all working-notes docs (`6a379ad8`, `ccb48b51`, `7fb3b6da`, `b4563b79`, `0676143e`, `47a545e4`, `b9532795`, `3801cae0` — consider squashing). `f5aeb5b6` CollectionVGrid pin = RE-CHECK (take upstream's newer rev if any). `pbxproj` hunks in signing commits need manual re-apply against the new project file.
+- **OBSOLETE (already upstream, DROP entirely) — ~214 non-merge + ~109 merges:** the whole imported #1902 tvOS Player + #1882 Index/Track history (Joe/Ethan authored), all "Merge main into tvOSPlayer" noise, `players.md` docs, `#1905` policy, and the integration merges `f122abb9`/`4613281f`/`d7c2fa1e`/`17b13d7f`. Upstream has these at `09884e00`/`74fa43fb`.
+- **RE-CHECK then likely DROP — 3–4:** `4abe5f15` isLiquidGlass (**obsolete**), `557523f8` debugBackground (**moot**), close-player half of `c66c7d5b` (**already upstream**), `23252324` nav close button (verify upstream tvOS already has one).
+- **RE-AUTHOR (the real work) — ~14 cyril commits + the ~28-commit #1770 block:** everything touching library/paging/filter/home/hero. Target files were moved/deleted by #2047. **Do not replay diffs — re-implement the feature intent once against the new architecture.** Highest-value cluster: `1a2ac2a3` (P5 multi-pill + persistence + green icon + home — split icon out as KEEP), `35321724` (played/unplayed filter cases + mutual exclusion), `efa959f8` (keychain-backed filters), `585927d3` (main-bar stable id / P9), the P8.x home/hero set (`bf12d2e9`, `17b94998`, `be676573`, `73f50da8`, `1ebdd1f3`, `f8c3b8ff`), pill styling (`cd550694`, `4857ef41`, `0851fff3`).
+
+## D. Migration plan — phases (each phase ends BUILD SUCCEEDED + sim smoke test)
+
+> Work on a new branch off `sync/upstream-base`, e.g. `local/appletv-dev-v2`. Keep `local/appletv-dev` untouched as the shipping branch until v2 reaches parity + is deployed & verified on the Apple TV.
+
+- **M0 — Base + local-distinction (low risk).** Branch `local/appletv-dev-v2` from `sync/upstream-base`. Cherry-pick/re-apply the KEEP-AS-IS set: green icon brandassets + display name (`b628bfea`), bundle-id/signing (`3b555d81`, `167628b7`) — re-do `pbxproj`/entitlements hunks by hand against the new project file — deploy script (squashed), `.gitignore`, docs. Confirm the local app builds, installs, shows the green icon, coexists with the App Store app. **Gate:** Release build green, icon distinct, signs with free profile.
+- **M1 — Keychain-backed StoredValues (medium).** Re-implement `efa959f8`: add `storage: .keychain` to `StoredValues+User.swift:126` `libraryFilters(parentID:)` and re-create the `KeychainObservable` / `_GenericValueObservation` support against upstream's current `StoredValue` API. **Gate:** a filter set on a real library survives app reinstall on the sim.
+- **M2 — Filter feature: played/unplayed + persistence semantics (hard, core).** Ensure `ItemFilterType`/`ItemFilterCollection` expose the played/unplayed traits and the `.isPlayed`/`.isUnplayed` mutual-exclusion (`35321724`). Verify the reactive path `filterViewModel.$currentFilters` → `ItemLibrary.environment.filters` → `attachFilters` already carries `traits`. Flip `rememberFiltering`/`rememberSort` defaults to `true` if desired (our P5.4). **Gate:** on the Média-tab library, unplayed filters apply and persist across navigation + relaunch.
+- **M3 — tvOS multi-pill filter UI (hard, biggest single item).** Recreate our `LibraryHeader` multi-pill drawer (one pill per `enabledDrawerFilters` type: Genres/Lettre/Tri/Étiquettes/Filtres/Années; accent tint when active; capsule + material + chevron style; reset pill) and mount it in the tvOS branch of `ItemLibraryBody` (`ItemLibrary.swift:297` `#if os(tvOS)`), reading the `filterViewModel` the library already holds (`:33`). Re-apply the safeAreaInset/header approach (`0851fff3`) — first check whether upstream's shared `PagingLibraryView` already supports a header slot. Fold in pill polish (`cd550694`, `4857ef41`). **Gate:** Films/Séries libraries show the pill row; each opens its selector; single title (no doubled nav title).
+- **M4 — Main-bar Movies/TV Shows fix / P9 (medium, depends on M1–M2).** Re-apply the stable-parentID fix at `TabItem.swift:69` — `BaseItemDto(id: "tab-movies"/"tab-tvshows", name: title)`. **Gate:** the unplayed filter now sticks when set from the top-bar Films/Séries tabs (the exact P9 symptom), matching the Média tab.
+- **M5 — tvOS Home / cinematic hero polish (hard).** On upstream's `HomeView.swift`: (a) recreate `CinematicNextUpView.swift` and the Resume→NextUp→RecentlyAdded hero fallback chain; (b) add the empty-state guard (`recentlyAddedViewModel.elements.isNotEmpty`); (c) drop the duplicate global Recently Added row + skip the promoted section from the stacked rows; (d) 10-item hero cap; (e) extract the `ContentView` sub-struct that observes child VMs directly (late-arrival fix). Wire against the new image API (`landscapeImageSources(environment:)`, `environment.useParent`). Re-verify P8.2 backdrop dispatch + P8.3 first-item-in-hero still needed (files `CinematicBackgroundView`/`CinematicItemSelector` — check upstream equivalents). **Skip P8.5** (series-art) unless the sim shows episode stills. **Gate:** home matches the P8 layout on a real account with/without Continue Watching, never blank.
+- **M6 — Cross-cutting fixes: verify-then-skip.** Confirm upstream already covers `confirmClose`, `isLiquidGlassEnabled`, `debugBackground` (it does) → **do not re-apply**. Check whether upstream tvOS already has a sheet close button before re-adding `23252324`. Take upstream's `CollectionVGrid` pin. **Gate:** Release build green with none of the obsolete patches.
+- **M7 — Parity verification + cutover.** Full sim pass, then deploy to the Apple TV via `Scripts/deploy-appletv.sh` and verify on hardware (login persists, pill filters, unplayed sticks from both entry points, home hero, new player). When v2 matches or beats the P9 build, tag `local-working-<date>-v2`, fast-forward/rename `local/appletv-dev` → v2, keep the old tags as fallback.
+
+## E. Effort & sequencing summary
+
+- **Cheap & safe:** M0 (icon/signing/deploy/docs), M6 (mostly deletions/no-ops).
+- **The real cost is M2→M5** — re-authoring the library-filter feature and the home polish against `ItemLibrary` / `ItemLibraryBody` / the generic `PagingLibraryView` and the new image API. Budget these as the bulk of the work; they're feature re-implementations, not merges.
+- **Dependency order:** M1 → M2 → (M3, M4) ; M5 independent; do M0 first, M6/M7 last.
+- **Rollback:** anytime, `git checkout local-working-2026-07-12-P9`. `local/appletv-dev` stays the shipping branch until M7 cutover.
+- **Definition of done:** v2 on fresh upstream reaches feature parity with the P9 build (green icon, keychain filter persistence, tvOS multi-pill filters, unplayed sticks from main-bar + Média, P8 home/hero, new player) — verified on the Apple TV — with zero re-applied obsolete patches.
