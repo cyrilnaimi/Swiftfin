@@ -521,3 +521,12 @@ Build/run v2: `git checkout local/appletv-dev-v2` then build the `Swiftfin tvOS`
 7. **New player** opens and plays (upstream #1902, now native upstream).
 
 If all pass: tag `local-working-<date>-v2`, then make v2 the shipping branch (e.g. rename `local/appletv-dev` → `local/appletv-dev-legacy`, `local/appletv-dev-v2` → `local/appletv-dev`), keeping the old tags/branch as fallback. Deploy via `Scripts/deploy-appletv.sh`.
+
+## v2 M7 findings — KNOWN REGRESSIONS to fix before cutover (2026-07-12 on-device)
+
+Deployed v2 to the Apple TV (blue-violet icon, `org.jellyfin.swiftfin.local.cnaimi`). Mostly good, but two tvOS UI regressions vs the P9 build — **do NOT cut over until fixed**:
+
+1. **Top bar missing on some screens.** Almost certainly the M3 change `.toolbar(.hidden, for: .navigationBar)` added to `ItemLibraryBody` (`Shared/Objects/Libraries/ItemLibrary.swift` `#if os(tvOS)`) — it hides the nav bar too broadly (e.g. Média→library screens lose their top bar / context). Fix: hide the title more surgically (e.g. only suppress the doubled `navigationTitle`, or hide the bar only for the main-bar aggregate tabs, not every ItemLibrary), rather than hiding the whole nav bar.
+2. **Filter pills overlap the poster grid.** The `.safeAreaInset(edge: .top) { LibraryHeader }` mount in `ItemLibraryBody` isn't reserving space against the shared `PagingLibraryView`'s `CollectionVGrid` on tvOS — posters render under the pills. Fix: reserve top space for the header (the shared `PagingLibraryView`/`CollectionVGrid` likely ignores the safe-area inset on tvOS; may need a top content-inset/padding on the grid instead of `safeAreaInset`, mirroring how the old tvOS `PagingLibraryView` did it).
+
+Both are M3 (filter-UI mount) layout issues — exactly the visual-iteration work M3 was flagged to need. The v2 branch is otherwise sound (M0–M6 build green). **Decision (2026-07-12): pause v2, keep `local/appletv-dev` (P9) as the shipping build, carry only the new blue-violet icon back to it.** Resume v2 by fixing #1 and #2 above, then re-run the M7 checklist.
