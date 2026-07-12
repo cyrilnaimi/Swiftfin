@@ -56,6 +56,7 @@ extension TabItem {
     static func library(
         title: String,
         systemName: String,
+        parentID: String,
         filters: ItemFilterCollection
     ) -> TabItem {
         TabItem(
@@ -63,8 +64,11 @@ extension TabItem {
             title: title,
             systemImage: systemName
         ) {
+            // A stable, non-nil parent id is required so per-library stored
+            // values (filters/sort) save and restore — a nil id makes the
+            // parentID-keyed StoredValues writes/reads silently no-op.
             let viewModel = ItemLibraryViewModel(
-                parent: TitledLibraryParent(displayTitle: title),
+                parent: TitledLibraryParent(displayTitle: title, id: parentID),
                 filters: filters
             )
 
