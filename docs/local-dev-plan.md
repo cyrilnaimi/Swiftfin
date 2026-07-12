@@ -379,3 +379,38 @@ xcodebuild -project Swiftfin.xcodeproj -scheme "Swiftfin tvOS" \
 - ~26 missing localization keys (see above) for non-English locales.
 - The tvOS-specific FilterView UX (icon Reset, 50%-width centered Form) was lost in the merge; the unified Shared FilterView replaces it. Re-evaluate visually in the sim — may want to add tvOS-specific tweaks back.
 - `docs/local-dev-plan.md` and `docs/tvos-simulator-login-report.md` are CLAUDE working notes committed to the branch. If we ever PR back upstream, move them out of the diff first.
+
+---
+
+## Session 2026-07-12 — progress review + unplayed-filter root cause + upstream-sync assessment
+
+Tree clean at `efa959f8`. **Safety tag created before any changes: `local-working-2026-07-12-P8`** (annotated, local-only, not pushed) — restore point for the known-good P8 build.
+
+### P9 — "unread/unplayed filter doesn't work from the main UI bar" (Movies / TV Shows) — ROOT CAUSE FOUND (no fix applied yet)
+
+**Symptom (user):** picking the *unplayed / non lu* filter from the tvOS **top tab bar** Movies or TV Shows tab doesn't stick; doing the same inside a real **Media-tab** library works.
+
+**Root cause (verified in code):** the tvOS top-bar Movies/TV Shows tabs are built by `TabItem.library(...)` (`Shared/Coordinators/Tabs/TabItem.swift:56-73`), which hands the `ItemLibraryViewModel` a **synthetic parent with `id == nil`**: `TitledLibraryParent(displayTitle: title)` (`TitledLibraryParent.swift:13-23`, `id` defaults to nil). The Media tab instead opens the real `collectionFolder` `BaseItemDto` with a real id (`MediaView.swift:41-46`).
+
+Everything downstream keys off `parent.id`:
+- **Filter persistence save** is guarded `guard let newValue, let id = viewModel.parent?.id` (`Swiftfin tvOS/Views/PagingLibraryView/PagingLibraryView.swift:360-378`) → **skipped** when id is nil.
+- **Filter restore on open** is guarded `if let id = parent?.id` (`PagingLibraryViewModel.swift:184-201`) → **skipped**.
+- The store key itself is `parentID`-based (`StoredValues+User.swift:142-152`).
+
+So from the main-bar tabs the chosen filter is never saved or restored, while from the Media tab (real id) it is. (The *live in-session* query does still carry `Filters=IsUnplayed` + `IncludeItemTypes=Movie/Series` via the preset at `ItemLibraryViewModel.swift:87,96-98`, so the visible failure is primarily "doesn't persist/stick", not "never filters at all". Note also that with a nil-id parent `isRecursive` falls back to `true` and no `parentID` scoping is sent — an unscoped server-wide query — vs. the scoped Media-tab query.)
+
+**Minimal fix (designed, verified safe, NOT yet applied):** give the two main-bar tabs a **stable non-nil id**, e.g. `TitledLibraryParent(displayTitle: title, id: "tab-movies")` / `"tab-tvshows"` at `TabItem.swift:66-67`. Because `libraryType` stays nil, `setParentParameters` (`LibraryParent.swift:40-61`) passes the `guard let id` but its `switch` default case does **not** set `parentID` — so the server-wide semantics of these aggregate tabs are preserved — while the preset `filters.itemTypes` re-overrides `includeItemTypes` at `ItemLibraryViewModel.swift:96-98`. Net effect: persistence keys now resolve; query unchanged. `isRecursive` also unchanged (parent still isn't a `BaseItemDto`). One-line-per-tab change, low risk.
+
+**Upstream relevance:** this bug is in `Shared/` code and also exists in upstream `main` (pre-#2047), so the fix is upstreamable — but see the sync note below: upstream rewrote this whole area in #2047, so the exact files differ there.
+
+### Upstream-sync assessment (`local/appletv-dev` = 391 ahead / 118 behind `upstream/main`, merge base `d95903d1`)
+
+- Of the 118 upstream commits since our base, ~75 are Weblate/translation-only; ~43 are real code (442 files, +14.3k/−9.6k, epicenter = `Shared/`).
+- **Two of our three forked PRs already landed upstream:** #1882 Index/Track Fixes (`74fa43fb`) and #1902 [tvOS] Media Player (`09884e00`). Our imported copies (`f122abb9` merge, etc.) are now **redundant and divergent**.
+- **#1770 (library filters) did NOT land**; instead the whole library/poster/home area was **rewritten** by `Generic Paging Libraries (#2047)` `75282082` (+ #2068 poster cleanup, #2066 blurhash) — which supersedes LePips's #1752. `PagingLibraryView.swift`, `PagingLibraryViewModel.swift` etc. that our filter work depends on were **deleted/rewritten upstream**.
+- A straight `git merge upstream/main` = **61 conflicting files** (`git merge-tree`, working tree untouched), the hardest being modify/delete collisions on the exact PagingLibrary files #1770 edits, plus the VideoPlayer NavigationBar↔Toolbar directory restructure. **Not advisable as a merge.**
+- **Local-distinction layer is conflict-free** (App Icon Local brandassets, Info.plist bundle id, deploy script all untouched upstream).
+
+**Recommended sync path (when we choose to do it — medium/high effort, NOT started):** rebuild on a fresh `upstream/main`, *drop* the now-obsolete #1882/#1902 import commits, cherry-pick the conflict-free local-distinction commits (`b628bfea`, deploy-script chain, `4cd7c1f9`), then **re-author the #1770 filter feature + P8 home/hero polish on top of the new #2047 architecture**. That re-authoring is the real cost.
+
+**Decision for now:** stay pinned on the known-good build (tagged). No merge/rebase performed this session. Re-evaluate a deliberate sync sweep as its own project.
