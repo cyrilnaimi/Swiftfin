@@ -307,24 +307,35 @@ private struct ItemLibraryBody<Content: View>: View {
                 viewModel.environment.filters = filters
             }
         #if os(tvOS)
-            .background(alignment: .top) {
-                if isCinematicBackgroundEnabled {
-                    FadeContentTransitionView(
-                        item: focusedPoster,
-                        debounce: 0.5
-                    ) { item in
-                        ImageView(item?.landscapeImageSources(environment: .default) ?? [])
-                            .failure {
-                                EmptyView()
-                            }
-                            .aspectRatio(contentMode: .fill)
-                    }
-                    .blurred()
-                    .ignoresSafeArea()
+            // Upstream has no tvOS filter UI — mount the multi-pill drawer as a
+            // top inset and hide the nav bar so LibraryHeader's title is the
+            // single source (the shared PagingLibraryView also sets a
+            // navigationTitle, which would otherwise double up).
+            .safeAreaInset(edge: .top, spacing: 0) {
+                    LibraryHeader(
+                        title: viewModel.library.parent.displayTitle,
+                        filterViewModel: filterViewModel
+                    )
                 }
-            }
+                .toolbar(.hidden, for: .navigationBar)
+                .background(alignment: .top) {
+                    if isCinematicBackgroundEnabled {
+                        FadeContentTransitionView(
+                            item: focusedPoster,
+                            debounce: 0.5
+                        ) { item in
+                            ImageView(item?.landscapeImageSources(environment: .default) ?? [])
+                                .failure {
+                                    EmptyView()
+                                }
+                                .aspectRatio(contentMode: .fill)
+                        }
+                        .blurred()
+                        .ignoresSafeArea()
+                    }
+                }
         #else
-            .navigationBarFilterDrawer(
+                .navigationBarFilterDrawer(
                 viewModel: filterViewModel,
                 types: enabledDrawerFilters
             )
