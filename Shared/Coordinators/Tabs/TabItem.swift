@@ -57,6 +57,7 @@ extension TabItem {
     static func library(
         title: String,
         systemName: String,
+        parentID: String,
         filters: ItemFilterCollection
     ) -> TabItem {
         TabItem(
@@ -64,9 +65,15 @@ extension TabItem {
             title: title,
             systemImage: systemName
         ) {
+            // A stable, non-nil parent id is required so per-library stored
+            // values (filters/sort) save and restore — a nil id makes the
+            // parentID-keyed StoredValues writes/reads silently no-op. The
+            // synthetic parent has no `type`, so `makeBaseItemParameters` hits
+            // its `default` case and does NOT inject a `parentID` scope: the
+            // aggregate server-wide Movies/TV Shows query is unchanged.
             PagingLibraryView(
                 library: ItemLibrary(
-                    parent: BaseItemDto(name: title),
+                    parent: BaseItemDto(id: parentID, name: title),
                     filters: filters
                 )
             )
