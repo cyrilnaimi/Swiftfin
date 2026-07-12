@@ -37,11 +37,23 @@ struct ItemLibrary: PagingLibrary, SearchablePagingLibrary, WithRandomElementLib
             filters: filters ?? .default
         )
 
-        if let id = parent.id, Defaults[.Customization.Library.rememberSort] {
+        // Always restore persisted filters + sort (not just sort). The
+        // `rememberSort` Defaults gate is intentionally not applied: the
+        // Defaults library doesn't push a new `default:` onto existing
+        // installs, so gating made selections silently disappear across
+        // launches, and "remember my selections" is the expected behavior.
+        // `itemTypes` is deliberately NOT restored — it is a structural preset
+        // (e.g. the Movies/TV Shows tabs) rather than a user-chosen filter.
+        if let id = parent.id {
             let storedFilters = StoredValues[.User.libraryFilters(parentID: id)]
 
             environment.filters.sortBy = storedFilters.sortBy
             environment.filters.sortOrder = storedFilters.sortOrder
+            environment.filters.genres = storedFilters.genres
+            environment.filters.letter = storedFilters.letter
+            environment.filters.tags = storedFilters.tags
+            environment.filters.traits = storedFilters.traits
+            environment.filters.years = storedFilters.years
         }
 
         self.environment = environment
@@ -284,7 +296,7 @@ private struct ItemLibraryBody<Content: View>: View {
             }
             .backport
             .onChange(of: filterViewModel.currentFilters) { _, newFilters in
-                rememberSort(from: newFilters)
+                persistLibraryFilters(from: newFilters)
             }
             .onReceive(
                 filterViewModel.$currentFilters
@@ -319,14 +331,21 @@ private struct ItemLibraryBody<Content: View>: View {
         #endif
     }
 
-    private func rememberSort(from filters: ItemFilterCollection) {
-        guard let id = viewModel.library.parent.id,
-              Defaults[.Customization.Library.rememberSort]
-        else { return }
+    // Persist the user-chosen filters + sort so they survive navigation and
+    // relaunch (backed by the keychain — see StoredValues+User.libraryFilters).
+    // Unconditional by design (see the restore path in `init`). `itemTypes` is
+    // not persisted — it is a structural preset, not a user filter.
+    private func persistLibraryFilters(from filters: ItemFilterCollection) {
+        guard let id = viewModel.library.parent.id else { return }
 
         let storedFilters = StoredValues[.User.libraryFilters(parentID: id)]
             .mutating(\.sortBy, with: filters.sortBy)
             .mutating(\.sortOrder, with: filters.sortOrder)
+            .mutating(\.genres, with: filters.genres)
+            .mutating(\.letter, with: filters.letter)
+            .mutating(\.tags, with: filters.tags)
+            .mutating(\.traits, with: filters.traits)
+            .mutating(\.years, with: filters.years)
 
         StoredValues[.User.libraryFilters(parentID: id)] = storedFilters
     }
