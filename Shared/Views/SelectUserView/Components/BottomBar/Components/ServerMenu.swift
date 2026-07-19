@@ -78,6 +78,7 @@ extension SelectUserView {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .menuOrder(.fixed)
+            .symbolRenderingMode(.monochrome)
         }
     }
 }

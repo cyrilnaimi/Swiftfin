@@ -140,6 +140,7 @@ extension SelectUserView {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .menuOrder(.fixed)
+            .symbolRenderingMode(.monochrome)
             .frame(width: buttonHeight, height: buttonHeight)
 
             ServerMenu(servers: servers)
