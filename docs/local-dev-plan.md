@@ -487,3 +487,91 @@ Authorship blocks map onto categories:
 - **Dependency order:** M1 → M2 → (M3, M4) ; M5 independent; do M0 first, M6/M7 last.
 - **Rollback:** anytime, `git checkout local-working-2026-07-12-P9`. `local/appletv-dev` stays the shipping branch until M7 cutover.
 - **Definition of done:** v2 on fresh upstream reaches feature parity with the P9 build (green icon, keychain filter persistence, tvOS multi-pill filters, unplayed sticks from main-bar + Média, P8 home/hero, new player) — verified on the Apple TV — with zero re-applied obsolete patches.
+
+---
+
+# Session 2026-07-29 — upstream 1.5 assessment + fork backup
+
+> Review-only session (plus pushes). **No code changed.** Purpose: answer "did we merge upstream?", record what 1.5 does/doesn't give us, and get every local-only ref off this machine.
+
+## A. Merge state — nothing from upstream has been merged into the shipping branch
+
+| Ref | State (as of 2026-07-29, after `git fetch upstream --tags`) |
+|---|---|
+| `local/appletv-dev` (shipping) | Diverged from `upstream/main` at `d95903d1` (2026-05-25). **197 behind / 396 ahead.** `upstream/main` is NOT an ancestor. |
+| `local/appletv-dev-v2` | Based on `sync/upstream-base` = `1dfbb7a1`, which is **3 commits before tag `1.5`** → v2 is effectively the 1.5 codebase already. M0–M6 done, **paused at M7**. |
+| `jpkribs/tvOSPlayer` (#1902) | Merged into `appletv-dev` at branch head `fd14fea3` (2026-05-23). Branch later gained `6e14bf72`, `1a714fef`; upstream squash-merged as `09884e00` (2026-06-06). |
+| `lepips/poster-library-home` | Never merged locally, and **still not merged upstream**. |
+| `main` | Identical to `origin/main`; 167 behind `upstream/main`. Stale pointer only, no local work. |
+
+## B. Upstream 1.5 — what it does and does not contain
+
+Tag `1.5` = `7891e273` "Content Groups (#2075)", 2026-07-14. `upstream/main` is already **76 commits past 1.5**.
+
+- **No tvOS filtering — confirmed hard.** `git grep` for `FilterViewModel` / `ItemFilterType` / `enabledDrawerFilters` under `Swiftfin tvOS/` at `upstream/main` returns **zero** hits. `NavigationBarFilterDrawer` lives only under `Swiftfin/` (iOS). PR #1770 never landed. **Our tvOS filter work is still unique.**
+- **No home/poster UI revamp.** LePips' `poster-library-home` remains an unmerged branch.
+- **But 1.5 DOES contain both PRs we hand-merged:** `09884e00` [tvOS] Media Player (#1902, 6 Jun) and `74fa43fb` Index/Track Fixes (#1882, 14 Jun). Our Phase-4 merge work is now redundant — upstream owns it. 1.5 also has `75282082` Generic Paging Libraries (#2047, 20 Jun), the re-architecture that invalidates our patches (see section C above).
+
+**Still genuinely ours:** tvOS filter/sort UI, keychain filter persistence, home/hero polish (P8.x), local-distinction layer.
+
+## C. What `local/appletv-dev` is missing — 197 commits (119 Weblate, **78 real**)
+
+- **Re-architecture (expensive):** `75282082` Generic Paging Libraries (#2047), `7891e273` Content Groups (#2075), `8f37d46a` Season `ItemView` (#2077), `cac6885b` Engine `PlatformViewRepresentable` (#2108), `cf39e361` SocketManager / SessionCommands (#2042)
+- **iOS filter/library UI:** `250166f0` drawer filters → `safeAreaBar` (#2096), `42dc7f97` VoiceOver filter-bar access (#2058), `e11c6393` iOS Letter Picker (#2089), `02d65aaa` library style sourcing (#2106)
+- **tvOS:** `bbda0c63` `sidebarAdaptable` (#2107), `af618fcb` tvOS home fix (#2094), `a182aef1` "tvOS deserves to be fixed too"
+- **Liquid glass:** `77c5f59d` final support (#2147), `a032bde2` `SelectUserView` styling (#2097)
+- **Live TV:** `c36e1030` cleanup (#2114), `fc122fed` poster & recordings (#2140), `b94faa6e` `MediaInfoSupplement` (#2139)
+- **Other:** `24c510ad` Various 1.5 Cleanup (#2124), `7bef01d1` markdown login disclaimer (#2053), `8608fceb` VoiceOver grouped nav (#2113), `dfcf4778` image tags (#2104), `c7c387d3` poster progress (#2118), `631ca53e` menu symbols (#2120), plus dependency/CI/lint bumps.
+
+## D. Video player — NOT fully up to date (corrects the "all player updates are present" assumption)
+
+We merged **pre-merge PR branch heads**, not upstream's final state:
+
+- #1902: merged `fd14fea3` (**23 May**); upstream squashed it as `09884e00` (**6 Jun**).
+- #1882: merged `65579dec` (**20 May**); upstream landed `74fa43fb` (**14 Jun**).
+
+Both were squash-merged, so **git ancestry cannot see them in our branch at all** — they appear in the "missing" list even though the feature is present. Don't read that as a gap; the real gap is what came after.
+
+**28 upstream commits touch player code since `09884e00`**, notably:
+`03c1726d` Playback Quality & Versions (#2054) · `68710475` transcode session cleanup (#2057) · `ffcf6981` LiveStreamId in start/progress/stop (#2062) · `36a3eb56` device profiles for MP4 HEVC `hev1`/`dvhe` (#2109) · `0ab58a13` + `18b8ae4a` DV P7 DirectPlay (Swiftfin + Native) · `4a649ece` separate VC1 transcode profile · `0f1ab257` remove shared AVC/H264 interlaced restriction · `7afca11e` Non-Romantic subtitle fix (#2121) · `4842f369` iOS alarm/timer audio (#2037) · `cac6885b` Engine `PlatformViewRepresentable` (#2108)
+
+Measured diff over the player paths (`Shared/Components/MediaPlayer`, `Shared/Objects/MediaPlayerManager`, `Shared/Objects/VideoPlayerType`, `Shared/Views/VideoPlayer`, `Swiftfin tvOS/Views/VideoPlayer`, `Swiftfin/Views/VideoPlayer`, `NativeVideoPlayer.swift`): **53 files, ~1650 lines** between `local/appletv-dev` and `upstream/main`.
+
+→ We ship the player *as of late May* plus our P8.5 series-art fix, and are missing ~2 months of playback / device-profile hardening.
+
+## E. Recommendation — v2 should become the shipping branch
+
+Do **not** merge `upstream/main` into `local/appletv-dev`: 197 commits across the #2047 re-architecture, and most of the payoff (#1902/#1882) we already merged by hand. Instead:
+
+1. Rebase `local/appletv-dev-v2` from `1dfbb7a1` onto `1.5` (3 commits — trivial) or onto current `upstream/main` (+76).
+2. Fix the two M3 layout regressions (section F).
+3. Run the M7 checklist → tag → cut over.
+
+This gets all 28 player commits + liquid glass + Live TV for free.
+
+## F. v2 M7 blockers — carried over from the 2026-07-12 on-device test
+
+(Recorded on the v2 branch as `c3808d61`; duplicated here so the shipping branch's doc is complete.)
+
+1. **Top bar missing on some screens.** `.toolbar(.hidden, for: .navigationBar)` added to `ItemLibraryBody` (`Shared/Objects/Libraries/ItemLibrary.swift`, `#if os(tvOS)`) hides the nav bar too broadly — Média→library screens lose their top bar. Fix surgically: suppress only the doubled `navigationTitle`, or hide the bar only for main-bar aggregate tabs.
+2. **Filter pills overlap the poster grid.** `.safeAreaInset(edge: .top) { LibraryHeader }` in `ItemLibraryBody` doesn't reserve space against the shared `PagingLibraryView`'s `CollectionVGrid` on tvOS. Likely needs a top content-inset/padding on the grid instead of `safeAreaInset`.
+
+## G. Fork backup — every local-only ref is now on `origin`
+
+Working tree was clean; nothing to commit.
+
+| Ref | Action |
+|---|---|
+| `local/appletv-dev` | pushed `efa959f8..1685a7cd` (5 pending commits) |
+| `local/appletv-dev-v2` | **new branch on origin** — M0–M6 previously existed only on this machine |
+| `sync/upstream-base` | **new branch on origin** |
+| tags `local-working-2026-07-12-P8` / `-P9` / `-P9-icon` / `local-v2-M0toM6-2026-07-12` | **pushed** — restore points were local-only |
+| `main` | no-op, already equal to `origin/main` |
+
+Nothing is unpushed. Rollback points survive a machine loss.
+
+## H. Next session
+
+- [ ] Decide rebase target for v2: `1.5` (conservative) or current `upstream/main` (+76, gets liquid glass + Live TV + all player fixes)
+- [ ] Fix M7 blocker #1 (nav bar scope) and #2 (grid top inset)
+- [ ] Re-run the M7 parity checklist on hardware, then cut `local/appletv-dev` → v2
