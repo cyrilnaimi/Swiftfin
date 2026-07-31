@@ -592,13 +592,16 @@ focus:   nil -> <season-uuid>        (+391 ms)
 
 `focusedGroupID` **never becomes `itemView-header`** — the outer `defaultFocus` never takes effect; focus just resolves to whatever the engine picks.
 
-**Hypotheses tested and DISPROVEN (do not retry):**
-1. *Header type swap.* `contentSize` starts `.zero` → `isCompact` true → `CompactSimpleHeader`, then flips to `RegularSimpleHeader` after `defaultFocus` resolved. Real (observed: `isCompact: true -> false`), but filling the ZStack before measuring changed nothing user-visible.
-2. *Play button not focusable.* `.disabled(provider.mediaPlayerItemProvider == nil)` — nil until the playback-info request returns (~matches the 391 ms), and disabled views aren't focusable on tvOS. Removing it on tvOS did not help either.
+**Hypotheses tested and DISPROVEN — all reverted, do not retry:**
 
-**Remaining suspects:** `ContentGroupVStack` attaches `.focused(binding, equals:)` through `.eraseToAnyView()`, and `AnyView` erases the structural identity `defaultFocus` needs to resolve its target; and/or the two nested `.userInitiated` `defaultFocus` declarations (outer on the VStack, inner on the header's play button) cancelling out.
+1. *Header type swap.* `contentSize` starts `.zero` → `isCompact` true → `CompactSimpleHeader`, then flips to `RegularSimpleHeader` after `defaultFocus` resolved. The swap is **real** (observed: `isCompact: true -> false` firing *after* `appear`), but filling the ZStack before measuring — `.frame(maxWidth: .infinity, maxHeight: .infinity)` ahead of `.trackingSize` — changed nothing user-visible.
+2. *Play button not focusable.* `.disabled(provider.mediaPlayerItemProvider == nil)` in `PlayButton` — nil until the playback-info request returns, which matches the 391 ms almost exactly, and disabled views are not focusable on tvOS. Removing it under `#if !os(tvOS)` did not help.
+3. *Wrong focus API.* Replaced the cross-platform `defaultFocus` with the tvOS-native pairing: `@Namespace` + `.focusScope(_:)` on the group VStack, namespace published through a new `\.itemViewFocusNamespace` environment value, and `.prefersDefaultFocus(true, in:)` on the header's play button. Builds and runs; **behaviour unchanged.**
+4. *AnyView identity erasure.* `ContentGroupVStack` attaches `.focused(binding, equals:)` after `.eraseToAnyView()`, so the theory was that AnyView hides the structural identity `defaultFocus` needs. **Ruled out on compilation grounds:** the group is an opened existential (`some ContentGroup` over `[any ContentGroup]`), so it *must* be erased before any modifier is attached — reordering fails with `type 'any View' cannot conform to 'View'`. Upstream has no choice here.
 
-**Decision: not fixed.** A workaround means force-asserting focus on a timer inside `Shared/` — a divergence that makes every future sync worse, for an upstream bug upstream has already flagged. Good candidate to report to jellyfin/Swiftfin *with the trace above*, which is more than their TODO has today.
+**Still untested:** the two nested `.userInitiated` `defaultFocus` declarations (outer on the VStack targeting `itemView-header`, inner in the header targeting `isPlayButtonFocused`) cancelling each other out. Worth trying by removing one.
+
+**Decision: not fixed (2026-07-31).** Four hypotheses down, and the remaining honest options are force-asserting focus on a timer inside `Shared/` — a divergence that makes every future sync worse — for a bug upstream has already flagged with a TODO. **Report it to jellyfin/Swiftfin with the trace and the disproven list above**, which is considerably more than their TODO has today.
 
 ## F. Deploy + tooling notes
 
