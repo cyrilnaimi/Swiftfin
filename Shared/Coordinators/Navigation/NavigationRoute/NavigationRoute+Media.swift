@@ -16,23 +16,12 @@ import Transmission
 extension NavigationRoute {
 
     @MainActor
-    static var channels: NavigationRoute {
-        NavigationRoute(
-            id: "channels"
-        ) {
-            PagingLibraryView(library: ChannelLibrary())
-                .if(UIDevice.isTV) { view in
-                    view.toolbar(.hidden, for: .navigationBar)
-                }
-        }
-    }
-
     static var liveTV: NavigationRoute {
         NavigationRoute(
             id: "liveTV",
             withNamespace: { .push(.zoom(sourceID: "item", namespace: $0)) }
         ) {
-            ProgramsView()
+            ContentGroupView(provider: LiveTVGroupProvider())
         }
     }
 
@@ -53,25 +42,12 @@ extension NavigationRoute {
 
     @MainActor
     static func videoPlayer(
-        item: BaseItemDto,
-        mediaSource: MediaSourceInfo? = nil,
-        queue: (any MediaPlayerQueue)? = nil
-    ) -> NavigationRoute {
-        let provider = MediaPlayerItemProvider(item: item) { item in
-            try await MediaPlayerItem.build(for: item, mediaSource: mediaSource)
-        }
-        return Self.videoPlayer(provider: provider, queue: queue)
-    }
-
-    @MainActor
-    static func videoPlayer(
         provider: MediaPlayerItemProvider,
         queue: (any MediaPlayerQueue)? = nil
     ) -> NavigationRoute {
         let manager = MediaPlayerManager(
-            item: provider.item,
-            queue: queue,
-            mediaPlayerItemProvider: provider.function
+            provider: provider,
+            queue: queue
         )
 
         return Self.videoPlayer(manager: manager)
@@ -121,7 +97,7 @@ struct VideoPlayerViewShim: View {
         .ignoresSafeArea()
         .persistentSystemOverlays(.hidden)
         .toolbar(.hidden, for: .navigationBar)
-        .onSizeChanged { _, safeArea in
+        .onFrameChanged { _, safeArea in
             self.safeAreaInsets = safeArea.max(EdgeInsets.edgePadding)
         }
     }

@@ -13,8 +13,6 @@ import SwiftUI
 // TODO: WebSocket
 struct ServerActivityView: View {
 
-    // MARK: - Router
-
     @Router
     private var router
 
@@ -38,7 +36,8 @@ struct ServerActivityView: View {
         }
         .animation(.linear(duration: 0.2), value: viewModel.state)
         .navigationTitle(L10n.activity)
-        .navigationBarTitleDisplayMode(.inline)
+        .backport
+        .toolbarTitleDisplayMode(.inline)
         .refreshable {
             await usersViewModel.refresh()
             await viewModel.refresh()
@@ -48,7 +47,16 @@ struct ServerActivityView: View {
                 ProgressView()
             }
 
-            Menu(L10n.filters, systemImage: "line.3.horizontal.decrease.circle") {
+            let systemImage = if #available(iOS 26, *) {
+                "line.3.horizontal.decrease"
+            } else {
+                "line.3.horizontal.decrease.circle"
+            }
+
+            Menu(
+                L10n.filters,
+                systemImage: systemImage
+            ) {
                 startDateButton
                 userFilterButton
             }

@@ -25,6 +25,9 @@ struct PagingLibraryView<Library: PagingLibrary>: View where Library.Element: Li
     @Router
     private var router
 
+    @State
+    private var isSafeAreaBarApplied: Bool = false
+
     @StateObject
     private var gridProxy = CollectionVGridProxy()
     @StateObject
@@ -32,6 +35,9 @@ struct PagingLibraryView<Library: PagingLibrary>: View where Library.Element: Li
 
     @StoredValue
     private var parentLibraryStyle: LibraryStyle
+
+    @TabItemSelected
+    private var tabItemSelected
 
     private var libraryStyleOptions: LibraryStyleOptions {
         viewModel.libraryStyleOptions
@@ -65,24 +71,44 @@ struct PagingLibraryView<Library: PagingLibrary>: View where Library.Element: Li
 
     @ViewBuilder
     private var elementsView: some View {
-        CollectionVGrid(
-            uniqueElements: viewModel.displayedElements,
-            layout: Element.layout(for: libraryStyle, options: libraryStyleOptions)
-        ) { element in
-            element.makeBody(libraryStyle: libraryStyle)
-                .withViewContext(.isThumb)
-        }
-        .onReachedBottomEdge(offset: .offset(300)) {
-            if viewModel.isSearchActive {
-                viewModel.getNextSearchPage()
+        AlternateLayoutView {
+            Color.clear
+        } content: { frame in
+
+            let insets: EdgeInsets = if #available(iOS 26, *), isSafeAreaBarApplied {
+                frame.safeAreaInsets + 10
             } else {
-                viewModel.getNextPage()
+                .zero + 10
             }
+
+            CollectionVGrid(
+                uniqueElements: viewModel.displayedElements,
+                layout: Element.layout(
+                    for: libraryStyle,
+                    options: libraryStyleOptions,
+                    insets: insets
+                )
+            ) { element in
+                element.makeBody(libraryStyle: libraryStyle)
+            }
+            .onReachedBottomEdge(offset: .offset(300)) {
+                if viewModel.isSearchActive {
+                    viewModel.getNextSearchPage()
+                } else {
+                    viewModel.getNextPage()
+                }
+            }
+            .proxy(gridProxy)
+            .ignoresSafeArea(edges: .vertical)
         }
-        .proxy(gridProxy)
         .scrollIndicators(.hidden)
         .withViewContext(.isListRowSeparatorVisible)
-        .ignoresSafeArea(edges: .vertical)
+        .withViewContext(.isThumb)
+        .onReceive(tabItemSelected) { event in
+            if event.isRepeat, event.isRoot {
+                gridProxy.scrollToTop(animated: true)
+            }
+        }
     }
 
     @ViewBuilder
@@ -129,49 +155,38 @@ struct PagingLibraryView<Library: PagingLibrary>: View where Library.Element: Li
         .animation(.linear(duration: 0.2), value: viewModel.elements)
         .animation(.linear(duration: 0.2), value: viewModel.searchElements)
         .navigationTitle(viewModel.library.parent.displayTitle)
+        .onPreferenceChange(IsSafeAreaBarApplied.self) { newValue in
+            isSafeAreaBarApplied = newValue
+        }
         .backport
-        .toolbarTitleDisplayMode(.inline)
+        .toolbarTitleDisplayMode(router.isRootOfPath ? .inlineLarge : .inline)
+        .backport
+        .onChange(of: viewModel.environment) {
+            viewModel.refreshForEnvironmentChange()
+        }
+        .backport
+        .onChange(of: libraryStyle) { oldStyle, newStyle in
+            if Element.layout(for: oldStyle, options: libraryStyleOptions, insets: .zero) ==
+                Element.layout(for: newStyle, options: libraryStyleOptions, insets: .zero)
+            {
+                gridProxy.layout()
+            }
+        }
+        .onReceive(viewModel.events) { event in
+            switch event {
+            case let .gotRandomItem(element):
+                element.libraryDidSelectElement(router: router, in: namespace)
+            }
+        }
+        .onFirstAppear {
+            viewModel.refresh()
+        }
         #if os(iOS)
-            .navigationBarMenuButton(
-                isLoading: viewModel.background.is(.gettingNextPage) || viewModel.background.is(.gettingNextSearchPage)
-            ) {
-                menuContent
-            }
-        #else
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    if viewModel.background.is(.gettingNextPage) || viewModel.background.is(.gettingNextSearchPage) {
-                        ProgressView()
-                    }
-
-                    #if os(iOS)
-                    Menu(L10n.options, systemImage: "ellipsis.circle") {
-                        menuContent
-                    }
-                    #endif
-                }
-            }
+        .navigationBarMenuButton(
+            isLoading: viewModel.background.is(.gettingNextPage) || viewModel.background.is(.gettingNextSearchPage)
+        ) {
+            menuContent
+        }
         #endif
-            .backport
-                .onChange(of: viewModel.environment) {
-                    viewModel.refreshForEnvironmentChange()
-                }
-                .backport
-                .onChange(of: libraryStyle) { oldStyle, newStyle in
-                    if Element.layout(for: oldStyle, options: libraryStyleOptions) ==
-                        Element.layout(for: newStyle, options: libraryStyleOptions)
-                    {
-                        gridProxy.layout()
-                    }
-                }
-                .onReceive(viewModel.events) { event in
-                    switch event {
-                    case let .gotRandomItem(element):
-                        element.libraryDidSelectElement(router: router, in: namespace)
-                    }
-                }
-                .onFirstAppear {
-                    viewModel.refresh()
-                }
     }
 }

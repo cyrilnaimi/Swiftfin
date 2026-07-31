@@ -112,11 +112,7 @@ extension Defaults.Keys {
     enum Customization {
 
         static var itemViewType: Key<ItemViewType> {
-            UserKey("itemViewType", default: .compactLogo)
-        }
-
-        static var showPosterLabels: Key<Bool> {
-            UserKey("showPosterLabels", default: true)
+            UserKey("mediaItemViewType", default: .enhanced)
         }
 
         static var nextUpPosterType: Key<PosterDisplayType> {
@@ -148,13 +144,6 @@ extension Defaults.Keys {
             UserKey("searchPosterType", default: .portrait)
         }
 
-        enum CinematicItemViewType {
-
-            static var usePrimaryImage: Key<Bool> {
-                UserKey("cinematicItemViewTypeUsePrimaryImage", default: false)
-            }
-        }
-
         enum Episodes {
 
             static var useSeriesLandscapeBackdrop: Key<Bool> {
@@ -164,20 +153,12 @@ extension Defaults.Keys {
 
         enum Indicators {
 
-            static var showFavorited: Key<Bool> {
-                UserKey("showFavoritedIndicator", default: true)
+            static var enabled: Key<PosterIndicator> {
+                UserKey("enabledPosterIndicators", default: .all)
             }
 
-            static var showProgress: Key<Bool> {
-                UserKey("showProgressIndicator", default: true)
-            }
-
-            static var showUnplayed: Key<UnplayedIndicatorType> {
-                UserKey("showUnplayedIndicator", default: .indicator)
-            }
-
-            static var showPlayed: Key<Bool> {
-                UserKey("showPlayedIndicator", default: true)
+            static var unplayedStyle: Key<UnplayedIndicatorType> {
+                UserKey("unplayedIndicatorStyle", default: .indicator)
             }
         }
 
@@ -385,19 +366,10 @@ extension Defaults.Keys {
             }
         }
 
-        // TODO: transition into a SubtitleConfiguration instead of multiple types
         enum Subtitle {
 
-            static var subtitleColor: Key<Color> {
-                UserKey("subtitleColor", default: .white)
-            }
-
-            static var subtitleFontName: Key<String> {
-                UserKey("subtitleFontName", default: UIFont.systemFont(ofSize: 14).fontName)
-            }
-
-            static var subtitleSize: Key<Int> {
-                UserKey("subtitleSize", default: 9)
+            static var configuration: Key<SubtitleConfiguration> {
+                UserKey("subtitleConfiguration", default: .default)
             }
         }
 
@@ -442,11 +414,6 @@ extension Defaults.Keys {
         Key(name, default: `default`, suite: .appSuite)
     }
 
-    static let isLiquidGlassEnabled: Key<Bool> = DebugKey("experimentalLiquidGlass", default: false)
     static let sendProgressReports: Key<Bool> = DebugKey("sendProgressReports", default: true)
-}
-#else
-extension Defaults.Keys {
-    static let isLiquidGlassEnabled: Key<Bool> = AppKey("experimentalLiquidGlass", default: false)
 }
 #endif

@@ -96,6 +96,9 @@ struct LibraryHeader: View {
         let filters = filterViewModel.currentFilters
 
         switch type {
+        case .category:
+            let values = filters.categories.map(\.value)
+            return values.isEmpty ? type.displayTitle : values.joined(separator: ", ")
         case .genres:
             let values = filters.genres.map(\.value)
             return values.isEmpty ? type.displayTitle : values.joined(separator: ", ")

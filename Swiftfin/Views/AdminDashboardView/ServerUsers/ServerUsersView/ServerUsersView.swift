@@ -7,14 +7,10 @@
 //
 
 import CollectionVGrid
-import Defaults
 import JellyfinAPI
 import SwiftUI
 
 struct ServerUsersView: View {
-
-    @Default(.accentColor)
-    private var accentColor
 
     @Router
     private var router
@@ -53,7 +49,8 @@ struct ServerUsersView: View {
         }
         .animation(.linear(duration: 0.2), value: viewModel.state)
         .navigationTitle(L10n.users)
-        .navigationBarTitleDisplayMode(.inline)
+        .backport
+        .toolbarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isEditing)
         .refreshable {
             viewModel.send(.getUsers(isHidden: isHiddenFilterActive, isDisabled: isDisabledFilterActive))
@@ -66,7 +63,7 @@ struct ServerUsersView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 if isEditing {
-                    Button(isEditing ? L10n.cancel : L10n.edit) {
+                    Button(L10n.cancel, role: .cancel) {
                         isEditing.toggle()
 
                         UIDevice.impact(.light)
@@ -75,18 +72,27 @@ struct ServerUsersView: View {
                             selectedUsers.removeAll()
                         }
                     }
-                    .buttonStyle(.toolbarPill)
-                    .foregroundStyle(accentColor)
+                    .foregroundStyle(.primary, .secondary)
+                    .if(true) { view in
+                        if #available(iOS 26.0, *) {
+                            view
+                        } else {
+                            view
+                                .backport
+                                .buttonStyle(.glass)
+                        }
+                    }
+                    .controlSize(.small)
                 }
             }
             ToolbarItem(placement: .bottomBar) {
                 if isEditing {
-                    Button(L10n.delete) {
+                    Button(L10n.delete, role: .destructive) {
                         isPresentingDeleteSelectionConfirmation = true
                     }
-                    .buttonStyle(.toolbarPill(.red))
+                    .backport
+                    .buttonStyle(.glassProminent)
                     .disabled(selectedUsers.isEmpty)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }
@@ -214,9 +220,18 @@ struct ServerUsersView: View {
                 selectedUsers = Set(viewModel.users.compactMap(\.id))
             }
         }
-        .buttonStyle(.toolbarPill)
+        .foregroundStyle(.primary, .secondary)
+        .if(true) { view in
+            if #available(iOS 26.0, *) {
+                view
+            } else {
+                view
+                    .backport
+                    .buttonStyle(.glass)
+            }
+        }
+        .controlSize(.small)
         .disabled(!isEditing)
-        .foregroundStyle(accentColor)
     }
 
     // MARK: - Delete Selected Users Confirmation Actions

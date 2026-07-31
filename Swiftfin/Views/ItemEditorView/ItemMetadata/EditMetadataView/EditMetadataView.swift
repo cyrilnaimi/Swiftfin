@@ -39,17 +39,28 @@ struct EditMetadataView: View {
     var body: some View {
         contentView
             .navigationTitle(L10n.metadata)
-            .navigationBarTitleDisplayMode(.inline)
+            .backport
+            .toolbarTitleDisplayMode(.inline)
             .topBarTrailing {
                 if viewModel.background.states.contains(.updating) {
                     ProgressView()
                 }
 
-                Button(L10n.save) {
+                let saveAction: () -> Void = {
                     item = tempItem
                     viewModel.update(tempItem)
                 }
-                .buttonStyle(.toolbarPill)
+
+                Group {
+                    if #available(iOS 26, *) {
+                        Button(L10n.save, role: .confirm, action: saveAction)
+                    } else {
+                        Button(L10n.save, action: saveAction)
+                            .backport
+                            .buttonStyle(.glassProminent)
+                            .controlSize(.small)
+                    }
+                }
                 .disabled(viewModel.item == tempItem)
             }
             .navigationBarCloseButton {

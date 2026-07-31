@@ -89,7 +89,7 @@ enum UserViewLibraryElement: Displayable, Hashable, Identifiable, LibraryElement
             "heart.fill"
         case let .userView(item):
             if item.collectionType == .livetv {
-                "tv.fill"
+                "tv"
             } else {
                 "folder.fill"
             }
@@ -102,11 +102,27 @@ enum UserViewLibraryElement: Displayable, Hashable, Identifiable, LibraryElement
     ) {
         switch self {
         case .favorites:
-            let library = ItemLibrary(
-                parent: BaseItemDto(id: "favorites", name: L10n.favorites),
-                filters: .favorites
+            router.route(
+                to: .contentGroup(
+                    provider: ItemTypeContentGroupProvider(
+                        itemTypes: [
+                            BaseItemKind.movie,
+                            .series,
+                            .boxSet,
+                            .episode,
+                            .musicVideo,
+                            .video,
+                            .liveTvProgram,
+                            .tvChannel,
+                            .musicArtist,
+                            .person,
+                        ],
+                        parent: .init(name: L10n.favorites),
+                        environment: .init(filters: .favorites)
+                    )
+                ),
+                in: namespace
             )
-            router.route(to: .library(library: library), in: namespace)
         case let .userView(item):
             if item.collectionType == .livetv {
                 router.route(to: .liveTV, in: namespace)
@@ -279,7 +295,7 @@ private struct UserViewLibraryListElement: View {
                 .id(imageSources.hashValue)
         }
         .posterStyle(.landscape)
-        .posterShadow()
+        .subtleShadow()
         .frame(width: userViewLibraryListImageWidth)
     }
 
@@ -312,23 +328,24 @@ private extension UserViewLibraryElement {
             throw UserSessionError.missingCurrentSession
         }
 
-        if case let .userView(item) = self, item.collectionType == .livetv {
-            return []
-        }
-
         var parentID: String?
         var filters: [ItemTrait]?
+        var includeItemTypes: [BaseItemKind] = BaseItemKind.supportedCases
 
         switch self {
         case .favorites:
             filters = [.isFavorite]
         case let .userView(item):
-            parentID = item.id
+            if item.collectionType == .livetv {
+                includeItemTypes = [.tvProgram, .liveTvProgram]
+            } else {
+                parentID = item.id
+            }
         }
 
         var parameters = Paths.GetItemsParameters()
         parameters.filters = filters
-        parameters.includeItemTypes = BaseItemKind.supportedCases
+        parameters.includeItemTypes = includeItemTypes
         parameters.isRecursive = true
         parameters.limit = 3
         parameters.parentID = parentID

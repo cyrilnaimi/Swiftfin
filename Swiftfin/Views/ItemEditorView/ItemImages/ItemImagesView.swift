@@ -8,7 +8,6 @@
 
 import CollectionHStack
 import Defaults
-import Engine
 import JellyfinAPI
 import SwiftUI
 
@@ -178,7 +177,12 @@ struct ItemImagesView: View {
                 selectedType.displayTitle,
                 systemImage: "chevron.down"
             )
-            .labelStyle(.episodeSelector)
+            .labelStyle(
+                CapsuleLabelStyle(
+                    isIconTrailing: true
+                )
+            )
+            .font(.headline)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -224,7 +228,7 @@ struct ItemImagesView: View {
                     .pipeline(.Swiftfin.other)
                 }
                 .posterStyle(posterType)
-                .posterShadow()
+                .subtleShadow()
             }
             .buttonStyle(.plain)
         }
@@ -246,7 +250,7 @@ struct ItemImagesView: View {
                 }
             }
             .posterStyle(posterType)
-            .posterShadow()
+            .subtleShadow()
         }
         .buttonStyle(.plain)
     }

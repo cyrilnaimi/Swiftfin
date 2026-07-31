@@ -172,7 +172,7 @@ struct ItemLibrary: PagingLibrary, SearchablePagingLibrary, WithRandomElementLib
     private func makeBaseItemParameters(environment: Environment) -> Paths.GetItemsParameters {
         var parameters = Paths.GetItemsParameters()
         parameters.enableUserData = true
-        parameters.fields = .MinimumFields
+        parameters.fields = .MinimumFields.appending(.channelInfo)
         parameters.includeItemTypes = parent.supportedItemTypes(for: environment.grouping)
         parameters.isRecursive = parent.isRecursiveCollection(for: environment.grouping)
         parameters.sortBy = [.name]
@@ -181,8 +181,6 @@ struct ItemLibrary: PagingLibrary, SearchablePagingLibrary, WithRandomElementLib
         guard let parentID = parent.id else { return parameters }
 
         switch parent.libraryType {
-        case .boxSet, .collectionFolder, .userView:
-            parameters.parentID = parentID
         case .folder:
             parameters.parentID = parentID
             parameters.isRecursive = nil
@@ -191,7 +189,7 @@ struct ItemLibrary: PagingLibrary, SearchablePagingLibrary, WithRandomElementLib
         case .studio:
             parameters.studioIDs = [parentID]
         default:
-            break
+            parameters.parentID = parentID
         }
 
         return parameters
@@ -228,6 +226,16 @@ struct ItemLibrary: PagingLibrary, SearchablePagingLibrary, WithRandomElementLib
         parameters.tags = filters.tags.map(\.value)
         parameters.years = filters.years.compactMap { Int($0.value) }
 
+        parameters.isMovie = filters.categories.contains(.movies) ? true : nil
+        parameters.isSeries = filters.categories.contains(.series) ? true : nil
+        parameters.isNews = filters.categories.contains(.news) ? true : nil
+        parameters.isKids = filters.categories.contains(.kids) ? true : nil
+        parameters.isSports = filters.categories.contains(.sports) ? true : nil
+
+        if let query = filters.query {
+            parameters.searchTerm = query
+        }
+
         if filters.itemTypes.isNotEmpty {
             parameters.includeItemTypes = filters.itemTypes
         }
@@ -261,14 +269,9 @@ private struct ItemLibraryBody<Content: View>: View {
 
     @Default(.Customization.Library.enabledDrawerFilters)
     private var enabledDrawerFilters
-    #if os(tvOS)
-    @Default(.Customization.Library.cinematicBackground)
-    private var isCinematicBackgroundEnabled
 
-    @FocusedValue(\.focusedPoster)
-    private var focusedPoster
-
-    #endif
+    @Router
+    private var router
 
     @ObservedObject
     private var viewModel: PagingLibraryViewModel<ItemLibrary>
@@ -307,35 +310,13 @@ private struct ItemLibraryBody<Content: View>: View {
                 viewModel.environment.filters = filters
             }
         #if os(tvOS)
-            // Upstream has no tvOS filter UI — mount the multi-pill drawer as a
-            // top inset and hide the nav bar so LibraryHeader's title is the
-            // single source (the shared PagingLibraryView also sets a
-            // navigationTitle, which would otherwise double up).
-            .safeAreaInset(edge: .top, spacing: 0) {
-                    LibraryHeader(
-                        title: viewModel.library.parent.displayTitle,
-                        filterViewModel: filterViewModel
-                    )
+            .background(alignment: .top) {
+                if !router.isRootOfPath {
+                    FocusedPosterCinematicBackgroundView()
                 }
-                .toolbar(.hidden, for: .navigationBar)
-                .background(alignment: .top) {
-                    if isCinematicBackgroundEnabled {
-                        FadeContentTransitionView(
-                            item: focusedPoster,
-                            debounce: 0.5
-                        ) { item in
-                            ImageView(item?.landscapeImageSources(environment: .default) ?? [])
-                                .failure {
-                                    EmptyView()
-                                }
-                                .aspectRatio(contentMode: .fill)
-                        }
-                        .blurred()
-                        .ignoresSafeArea()
-                    }
-                }
+            }
         #else
-                .navigationBarFilterDrawer(
+            .navigationBarFilterDrawer(
                 viewModel: filterViewModel,
                 types: enabledDrawerFilters
             )

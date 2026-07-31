@@ -10,6 +10,42 @@ import SwiftUI
 
 extension VideoPlayer.PlaybackControls {
 
+    struct OverlayButtonStyleModifier: ViewModifier {
+
+        let onPressed: (Bool) -> Void
+
+        @ViewBuilder
+        func body(content: Content) -> some View {
+            if #available(iOS 26.0, *) {
+                content
+                    .buttonStyle(OverlayGlassButtonStyle(onPressed: onPressed))
+                    .backport
+                    .buttonBorderShape(.circle)
+            } else {
+                content
+                    .buttonStyle(OverlayButtonStyle(onPressed: onPressed))
+            }
+        }
+    }
+
+    @available(iOS 26.0, tvOS 26.0, *)
+    struct OverlayGlassButtonStyle: PrimitiveButtonStyle {
+
+        let onPressed: (Bool) -> Void
+
+        func makeBody(configuration: Configuration) -> some View {
+            Button(role: configuration.role) {
+                configuration.trigger()
+            } label: {
+                configuration.label
+            }
+            .buttonStyle(.glass)
+            .onLongPressGesture(minimumDuration: .infinity) {} onPressingChanged: { isPressed in
+                onPressed(isPressed)
+            }
+        }
+    }
+
     struct OverlayButtonStyle: ButtonStyle {
 
         @Environment(\.isEnabled)
@@ -59,28 +95,21 @@ extension VideoPlayer.PlaybackControls {
         #if os(tvOS)
         private func tvOSBody(_ configuration: Configuration) -> some View {
             configuration.label
-                .foregroundStyle(foregroundStyle)
                 .labelStyle(.iconOnly)
                 .font(.body)
                 .fontWeight(.semibold)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .frame(minHeight: 56)
-                .contentShape(Circle())
-                .background {
-                    if isFocused {
-                        Circle()
-                            .fill(Color.white)
-                    } else {
-                        Circle()
-                            .fill(Material.thin.tinted(.white.opacity(0.2)))
-                    }
-                }
-                .overlay {
-                    Circle()
-                        .stroke(.white.opacity(0.1), lineWidth: 1)
-                }
-                .clipShape(Circle())
+                .backport
+                .glassEffect(
+                    .regular.selection(
+                        tint: .white,
+                        foregroundColor: .black
+                    ),
+                    in: .circle
+                )
+                .isSelected(isFocused)
                 .scaleEffect(configuration.isPressed ? 0.90 : isFocused ? 1.1 : 1)
                 .shadow(color: isFocused ? .black.opacity(0.5) : .clear, radius: isFocused ? 10 : 0)
                 .animation(.linear(duration: 0.1), value: isFocused)
@@ -89,14 +118,6 @@ extension VideoPlayer.PlaybackControls {
                 .onChange(of: configuration.isPressed) { _, newValue in
                     onPressed(newValue)
                 }
-        }
-
-        private var foregroundStyle: AnyShapeStyle {
-            guard isEnabled else {
-                return AnyShapeStyle(Color.gray)
-            }
-
-            return AnyShapeStyle(isFocused ? Color.black : Color.white)
         }
         #endif
     }

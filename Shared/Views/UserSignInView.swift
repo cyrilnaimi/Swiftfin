@@ -96,6 +96,18 @@ struct UserSignInView: View {
         return evaluatedPolicy
     }
 
+    @ViewBuilder
+    private func disclaimerText(_ disclaimer: String) -> some View {
+        if let attributedString = try? AttributedString(
+            markdown: disclaimer,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        ) {
+            Text(attributedString)
+        } else {
+            Text(disclaimer)
+        }
+    }
+
     // MARK: - Sign In Section
 
     @ViewBuilder
@@ -142,31 +154,53 @@ struct UserSignInView: View {
         }
 
         if case .signingIn = viewModel.state {
-            Button(L10n.cancel, role: .cancel) {
+            Button(role: .cancel) {
                 viewModel.cancel()
+            } label: {
+                Text(L10n.cancel)
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.primary)
+            .listRowInsets(.zero)
+            .listRowBackground(Color.clear)
+            .fontWeight(.semibold)
+            .backport
+            .buttonStyle(.glassProminent.shadow(false))
+            #if os(iOS)
+                .controlSize(.large)
+            #endif
+            #if os(iOS)
+            .listRowSeparator(.hidden)
+            #endif
             .frame(maxHeight: 75)
         } else {
-            Button(L10n.signIn) {
+            Button {
                 viewModel.signIn(
                     username: username,
                     password: password
                 )
+            } label: {
+                Text(L10n.signIn)
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.primary)
+            .listRowInsets(.zero)
+            .listRowBackground(Color.clear)
+            .fontWeight(.semibold)
+            .backport
+            .buttonStyle(.glassProminent.shadow(false))
+            .tint(.jellyfinPurple)
+            #if os(iOS)
+                .controlSize(.large)
+            #endif
+            #if os(iOS)
+            .listRowSeparator(.hidden)
+            #endif
             .frame(maxHeight: 75)
             .disabled(username.isEmpty)
-            .foregroundStyle(
-                Color.jellyfinPurple.overlayColor,
-                Color.jellyfinPurple
-            )
-            .opacity(username.isEmpty ? 0.5 : 1)
         }
 
         if viewModel.isQuickConnectEnabled {
             Section {
-                Button(L10n.quickConnect) {
+                Button {
                     router.route(
                         to: .quickConnect(
                             client: viewModel.server.client
@@ -174,20 +208,29 @@ struct UserSignInView: View {
                             await viewModel.signInQuickConnect(secret: secret)
                         }
                     )
+                } label: {
+                    Text(L10n.quickConnect)
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.primary)
-                .frame(maxHeight: 75)
+                .listRowInsets(.zero)
+                .listRowBackground(Color.clear)
+                .fontWeight(.semibold)
+                .backport
+                .buttonStyle(.glassProminent.shadow(false))
+                .tint(.jellyfinPurple)
+                #if os(iOS)
+                    .controlSize(.large)
+                #endif
+                #if os(iOS)
+                .listRowSeparator(.hidden)
+                #endif
                 .disabled(viewModel.state == .signingIn)
-                .foregroundStyle(
-                    Color.jellyfinPurple.overlayColor,
-                    Color.jellyfinPurple
-                )
             }
         }
 
         if let disclaimer = viewModel.serverDisclaimer {
             Section(L10n.disclaimer) {
-                Text(disclaimer)
+                disclaimerText(disclaimer)
                     .font(.callout)
             }
         }
@@ -257,7 +300,8 @@ struct UserSignInView: View {
             signInSection
             publicUsersSection
         }
-        .navigationBarTitleDisplayMode(.inline)
+        .backport
+        .toolbarTitleDisplayMode(.inline)
         .navigationBarCloseButton(disabled: viewModel.state == .signingIn) {
             router.dismiss()
         }

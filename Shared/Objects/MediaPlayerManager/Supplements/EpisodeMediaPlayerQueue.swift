@@ -49,17 +49,22 @@ class EpisodeMediaPlayerQueue: ViewModel, MediaPlayerQueue {
     lazy var previousItemPublisher: Published<MediaPlayerItemProvider?>.Publisher = $previousItem
 
     private var currentAdjacentEpisodesTask: AnyCancellable?
-    private let seriesViewModel: SeriesItemViewModel
+    private let seasonsViewModel: PagingLibraryViewModel<SeasonViewModelLibrary>
 
     init(episode: BaseItemDto) {
-        self.seriesViewModel = SeriesItemViewModel(episode: episode)
+        self.seasonsViewModel = PagingLibraryViewModel(
+            library: SeasonViewModelLibrary(
+                parent: BaseItemDto(id: episode.seriesID, name: episode.seriesName)
+            ),
+            pageSize: 100
+        )
         super.init()
 
-        seriesViewModel.send(.refresh)
+        seasonsViewModel.refresh()
     }
 
     var videoPlayerBody: some PlatformView {
-        EpisodeOverlay(viewModel: seriesViewModel)
+        EpisodeOverlay(viewModel: seasonsViewModel)
     }
 
     private func didReceive(newItem: MediaPlayerItem?) {
@@ -119,19 +124,21 @@ class EpisodeMediaPlayerQueue: ViewModel, MediaPlayerQueue {
         var previousProvider: MediaPlayerItemProvider?
 
         if let nextItem {
-            nextProvider = MediaPlayerItemProvider(item: nextItem) { [weak self] item in
+            nextProvider = MediaPlayerItemProvider(item: nextItem) { [weak self] item, modifyItem in
                 let bitrate = await self?.manager?.playbackBitrate ?? Defaults[.VideoPlayer.Playback.appMaximumBitrate]
-                return try await MediaPlayerItem.build(for: item, requestedBitrate: bitrate) {
-                    $0.userData?.playbackPositionTicks = .zero
+                return try await MediaPlayerItem.build(for: item, requestedBitrate: bitrate) { item in
+                    item.userData?.playbackPositionTicks = .zero
+                    modifyItem?(&item)
                 }
             }
         }
 
         if let previousItem {
-            previousProvider = MediaPlayerItemProvider(item: previousItem) { [weak self] item in
+            previousProvider = MediaPlayerItemProvider(item: previousItem) { [weak self] item, modifyItem in
                 let bitrate = await self?.manager?.playbackBitrate ?? Defaults[.VideoPlayer.Playback.appMaximumBitrate]
-                return try await MediaPlayerItem.build(for: item, requestedBitrate: bitrate) {
-                    $0.userData?.playbackPositionTicks = .zero
+                return try await MediaPlayerItem.build(for: item, requestedBitrate: bitrate) { item in
+                    item.userData?.playbackPositionTicks = .zero
+                    modifyItem?(&item)
                 }
             }
         }
@@ -157,24 +164,25 @@ extension EpisodeMediaPlayerQueue {
         private var manager: MediaPlayerManager
 
         @ObservedObject
-        var viewModel: SeriesItemViewModel
+        var viewModel: PagingLibraryViewModel<SeasonViewModelLibrary>
 
         @State
         private var selection: PagingLibraryViewModel<EpisodeLibrary>.ID?
 
         private var selectionViewModel: PagingLibraryViewModel<EpisodeLibrary>? {
             guard let selection else { return nil }
-            return viewModel.seasons[id: selection]
+            return viewModel.elements[id: selection]
         }
 
         private func select(episode: BaseItemDto) {
-            let provider = MediaPlayerItemProvider(item: episode) { [manager] item in
+            let provider = MediaPlayerItemProvider(item: episode) { [manager] item, modifyItem in
                 let mediaSource = item.mediaSources?.first
 
                 return try await MediaPlayerItem.build(
                     for: item,
                     mediaSource: mediaSource!,
-                    requestedBitrate: manager.playbackBitrate
+                    requestedBitrate: manager.playbackBitrate,
+                    modifyItem: modifyItem
                 )
             }
 
@@ -182,13 +190,13 @@ extension EpisodeMediaPlayerQueue {
         }
 
         private func selectInitialSeason() {
-            if let seasonID = manager.item.seasonID, let season = viewModel.seasons[id: seasonID] {
+            if let seasonID = manager.item.seasonID, let season = viewModel.elements[id: seasonID] {
                 if season.elements.isEmpty {
                     season.refresh()
                 }
                 selection = season.id
             } else {
-                selection = viewModel.seasons.first?.id
+                selection = viewModel.elements.first?.id
             }
         }
 
@@ -212,11 +220,11 @@ extension EpisodeMediaPlayerQueue {
                     action: select
                 )
             }
-            .environmentObject(viewModel)
             .onAppear { selectInitialSeason() }
-            .onReceive(viewModel.$seasons) { newSeasons in
+            .onReceive(viewModel.$elements) { newSeasons in
                 setSelectionIfNeeded(seasons: newSeasons)
             }
+            .environmentObject(viewModel)
         }
 
         var tvOSView: some View {
@@ -224,27 +232,27 @@ extension EpisodeMediaPlayerQueue {
                 selection: $selection,
                 action: select
             )
-            .environmentObject(viewModel)
             .onFirstAppear {
                 selectInitialSeason()
             }
-            .onReceive(viewModel.$seasons) { newSeasons in
+            .onReceive(viewModel.$elements) { newSeasons in
                 setSelectionIfNeeded(seasons: newSeasons)
             }
+            .environmentObject(viewModel)
         }
     }
 
     private struct CompactSeasonStackObserver: View {
 
         @EnvironmentObject
-        private var seriesViewModel: SeriesItemViewModel
+        private var seasonsViewModel: PagingLibraryViewModel<SeasonViewModelLibrary>
 
         let selection: Binding<PagingLibraryViewModel<EpisodeLibrary>.ID?>
         let action: (BaseItemDto) -> Void
 
         private var selectionViewModel: PagingLibraryViewModel<EpisodeLibrary>? {
             guard let id = selection.wrappedValue else { return nil }
-            return seriesViewModel.seasons[id: id]
+            return seasonsViewModel.elements[id: id]
         }
 
         private struct _Body: View {
@@ -291,14 +299,14 @@ extension EpisodeMediaPlayerQueue {
     private struct RegularSeasonStackObserver: View {
 
         @EnvironmentObject
-        private var seriesViewModel: SeriesItemViewModel
+        private var seasonsViewModel: PagingLibraryViewModel<SeasonViewModelLibrary>
 
         let selection: Binding<PagingLibraryViewModel<EpisodeLibrary>.ID?>
         let action: (BaseItemDto) -> Void
 
         private var selectionViewModel: PagingLibraryViewModel<EpisodeLibrary>? {
             guard let id = selection.wrappedValue else { return nil }
-            return seriesViewModel.seasons[id: id]
+            return seasonsViewModel.elements[id: id]
         }
 
         private struct _Body: View {
@@ -389,19 +397,13 @@ extension EpisodeMediaPlayerQueue {
                 Button {
                     viewModel.refresh()
                 } label: {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 7)
-                            .foregroundStyle(.white)
-
-                        Label(L10n.retry, systemImage: "arrow.clockwise")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.black)
-                            .padding()
-                            .edgePadding(.horizontal)
-                    }
+                    Label(L10n.retry, systemImage: "arrow.clockwise")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .padding()
+                        .edgePadding(.horizontal)
                 }
-                .buttonStyle(.card)
+                .buttonStyle(.supplementAction)
                 .focused($isRetryButtonFocused)
                 .frame(height: UIDevice.isTV ? 80 : 50)
             }
@@ -461,7 +463,7 @@ extension EpisodeMediaPlayerQueue {
                 }
             }
             .posterStyle(.landscape)
-            .posterShadow()
+            .subtleShadow()
             .hoverEffect(.highlight)
         }
     }
@@ -530,7 +532,7 @@ extension EpisodeMediaPlayerQueue {
         let action: () -> Void
 
         var body: some View {
-            SupplementPosterButton(
+            PosterButton(
                 item: episode._withLandscapeImages { environment in
                     [
                         episode.imageSource(
@@ -539,21 +541,9 @@ extension EpisodeMediaPlayerQueue {
                         )
                     ]
                 },
-                action: action
-            ) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(episode.displayTitle)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1, reservesSpace: true)
-
-                    EpisodeDescription(episode: episode)
-                        .font(UIDevice.isTV ? .caption : .subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1, reservesSpace: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                displayType: .landscape
+            ) { _ in
+                action()
             }
             .isSelected(manager.item.id == episode.id)
         }

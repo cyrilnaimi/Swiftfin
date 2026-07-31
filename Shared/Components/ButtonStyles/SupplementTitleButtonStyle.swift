@@ -6,16 +6,12 @@
 // Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
-import Defaults
 import SwiftUI
 
 extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerView {
 
     #if os(tvOS)
     struct SupplementTitleButtonStyle: ButtonStyle {
-
-        @Default(.isLiquidGlassEnabled)
-        private var isLiquidGlassEnabled
 
         @Environment(\.isFocused)
         private var isFocused
@@ -24,11 +20,7 @@ extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerVi
 
         @ViewBuilder
         func makeBody(configuration: Configuration) -> some View {
-            if #available(tvOS 26.0, *), isLiquidGlassEnabled {
-                glassBody(configuration)
-            } else {
-                legacyBody(configuration)
-            }
+            glassBody(configuration)
         }
 
         private func baseLabel(_ configuration: Configuration) -> some View {
@@ -40,7 +32,6 @@ extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerVi
                 .frame(minHeight: 56)
         }
 
-        @available(tvOS 26.0, *)
         private func glassBody(_ configuration: Configuration) -> some View {
             baseLabel(configuration)
                 .foregroundStyle(isSelected ? .black : .white)
@@ -50,10 +41,6 @@ extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerVi
                         .interactive(isFocused),
                     in: Capsule()
                 )
-                .overlay {
-                    Capsule()
-                        .stroke(.white.opacity(0.1), lineWidth: 1)
-                }
                 .opacity(inactiveSelectedOpacity)
                 .animation(.easeInOut(duration: 0.1), value: isFocused)
                 .animation(.easeInOut(duration: 0.1), value: isSelected)
@@ -68,7 +55,11 @@ extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerVi
                             .fill(Color.white)
                     } else {
                         Capsule()
-                            .fill(Material.ultraThinMaterial.tinted(.white.opacity(0.2)))
+                            .fill(Material.ultraThinMaterial)
+                            .background {
+                                Capsule()
+                                    .fill(.white.opacity(0.2))
+                            }
                     }
                 }
                 .overlay {
@@ -76,6 +67,7 @@ extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerVi
                         .stroke(.white.opacity(0.1), lineWidth: 1)
                 }
                 .clipShape(Capsule())
+                .subtleShadow()
                 .opacity(inactiveSelectedOpacity)
                 .scaleEffect(isFocused ? 1.06 : 1)
                 .shadow(color: isFocused ? .black.opacity(0.5) : .clear, radius: isFocused ? 10 : 0)
@@ -90,9 +82,6 @@ extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerVi
     #else
     struct SupplementTitleButtonStyle: PrimitiveButtonStyle {
 
-        @Default(.isLiquidGlassEnabled)
-        private var isLiquidGlassEnabled
-
         @Environment(\.isEnabled)
         private var isEnabled
         @Environment(\.isSelected)
@@ -103,8 +92,8 @@ extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerVi
 
         @ViewBuilder
         func makeBody(configuration: Configuration) -> some View {
-            if #available(iOS 26.0, *), isLiquidGlassEnabled {
-                iOSGlassBody(configuration)
+            if #available(iOS 26.0, *) {
+                glassBody(configuration)
             } else {
                 legacyBody(configuration)
             }
@@ -132,13 +121,20 @@ extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerVi
                                 .fill(.ultraThinMaterial)
                         }
                     }
-                    .clipShape(Capsule()),
+                    .clipShape(Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(.white.opacity(0.1), lineWidth: 1)
+                    }
+                    .subtleShadow(),
                 configuration: configuration
             )
+            .scaleEffect(isPressed ? 0.9 : 1)
+            .animation(.bouncy(duration: 0.4), value: isPressed)
         }
 
         @available(iOS 26.0, *)
-        private func iOSGlassBody(_ configuration: Configuration) -> some View {
+        private func glassBody(_ configuration: Configuration) -> some View {
             pressableBody(
                 baseLabel(configuration)
                     .foregroundStyle(isSelected ? .black : .white)
@@ -167,8 +163,6 @@ extension VideoPlayer.UIVideoPlayerContainerViewController.SupplementContainerVi
 
                     isPressed = newValue
                 }
-                .scaleEffect(isPressed ? 0.9 : 1)
-                .animation(.bouncy(duration: 0.4), value: isPressed)
                 .opacity(isPressed ? 0.6 : 1)
                 .animation(.easeInOut(duration: 0.1), value: isSelected)
         }

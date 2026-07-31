@@ -12,40 +12,33 @@ import SwiftUI
 
 struct PosterImage<Element: Poster>: View {
 
-    @Environment(\.viewContext)
-    private var viewContext
+    @Environment(\.self)
+    private var environment
 
     private let contentMode: ContentMode
     private let element: Element
     private var pipeline: ImagePipeline
     private let size: PosterDisplayType.Size
-    private let type: PosterDisplayType
+    private let displayType: PosterDisplayType
 
     init(
         item: Element,
         type: PosterDisplayType,
-        contentMode: ContentMode = .fill,
-        size: PosterDisplayType.Size = .small
+        size: PosterDisplayType.Size = .small,
+        contentMode: ContentMode = .fill
     ) {
         self.contentMode = contentMode
+        self.displayType = type
         self.element = item
         self.pipeline = .shared
         self.size = size
-        self.type = type
     }
 
     private var imageSources: [ImageSource] {
-        var environment = Element.Environment.default
-
-        if var environmentWithViewContext = environment as? WithViewContext {
-            environmentWithViewContext.viewContext = viewContext
-            environment = environmentWithViewContext as! Element.Environment
-        }
-
-        return element.imageSources(
-            for: type,
+        element.imageSources(
+            for: displayType,
             size: size,
-            environment: environment
+            environment: element.resolveEnvironment(environment)
         )
     }
 
@@ -60,7 +53,7 @@ struct PosterImage<Element: Poster>: View {
                 ImageView(imageSources)
                     .pipeline(pipeline)
                     .image { image in
-                        element.transform(image: image, displayType: type)
+                        element.transform(image: image, displayType: displayType)
                     }
                     .placeholder { imageSource in
                         if let blurHash = imageSource.blurHash {
@@ -69,34 +62,23 @@ struct PosterImage<Element: Poster>: View {
                                 size: .init(width: 8, height: 8)
                             )?
                                 .resizable()
-                        } else if element.showTitle {
-                            SystemImageContentView(
-                                systemName: element.systemImage
-                            )
                         } else {
                             SystemImageContentView(
-                                title: element.displayTitle,
                                 systemName: element.systemImage
                             )
                         }
                     }
                     .failure {
-                        if element.showTitle {
-                            SystemImageContentView(
-                                systemName: element.systemImage
-                            )
-                        } else {
-                            SystemImageContentView(
-                                title: element.displayTitle,
-                                systemName: element.systemImage
-                            )
-                        }
+                        SystemImageContentView(
+                            systemName: element.systemImage
+                        )
                     }
                     .accessibilityRemoveTraits(.isImage)
+                    .accessibilityIgnoresInvertColors()
             }
         }
         .posterStyle(
-            type,
+            displayType,
             contentMode: contentMode
         )
     }

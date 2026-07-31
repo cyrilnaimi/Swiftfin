@@ -6,7 +6,6 @@
 // Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
-import Engine
 import FactoryKit
 import JellyfinAPI
 import SwiftUI
@@ -31,7 +30,8 @@ struct ItemEditorView: View {
             }
         }
         .navigationTitle(L10n.metadata)
-        .navigationBarTitleDisplayMode(.inline)
+        .backport
+        .toolbarTitleDisplayMode(.inline)
         .navigationBarCloseButton {
             router.dismiss()
         }
@@ -99,7 +99,6 @@ struct ItemEditorView: View {
                     Button(L10n.delete, role: .destructive) {
                         isPresentingDeleteConfirmation.wrappedValue = true
                     }
-                    .buttonStyle(.primary)
                     .confirmationDialog(
                         L10n.deleteItemConfirmationMessage,
                         isPresented: isPresentingDeleteConfirmation,
