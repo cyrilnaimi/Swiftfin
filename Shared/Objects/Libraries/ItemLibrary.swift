@@ -28,14 +28,27 @@ struct ItemLibrary: PagingLibrary, SearchablePagingLibrary, WithRandomElementLib
     let filterViewModel: FilterViewModel
     let parent: BaseItemDto
 
+    /// Key under which this library's filters and sort are persisted.
+    ///
+    /// Defaults to `parent.id`. The aggregate tvOS main-bar tabs (Movies / TV
+    /// Shows) have a synthetic parent with no server id, so they pass a stable
+    /// literal instead: giving that parent a real `id` is not an option because
+    /// `makeBaseItemParameters` forwards `parent.id` to the server as a
+    /// `parentID` scope, and a synthetic id matches nothing. Same idea as
+    /// `LibraryParent.pagingLibraryID`, which backs library-style persistence.
+    let persistenceID: String?
+
     init(
         parent: BaseItemDto,
-        filters: ItemFilterCollection? = nil
+        filters: ItemFilterCollection? = nil,
+        persistenceID: String? = nil
     ) {
         var environment = Environment(
             grouping: parent.groupings?.defaultSelection,
             filters: filters ?? .default
         )
+
+        let resolvedPersistenceID = persistenceID ?? parent.id
 
         // Always restore persisted filters + sort (not just sort). The
         // `rememberSort` Defaults gate is intentionally not applied: the
@@ -44,7 +57,7 @@ struct ItemLibrary: PagingLibrary, SearchablePagingLibrary, WithRandomElementLib
         // launches, and "remember my selections" is the expected behavior.
         // `itemTypes` is deliberately NOT restored — it is a structural preset
         // (e.g. the Movies/TV Shows tabs) rather than a user-chosen filter.
-        if let id = parent.id {
+        if let id = resolvedPersistenceID {
             let storedFilters = StoredValues[.User.libraryFilters(parentID: id)]
 
             environment.filters.sortBy = storedFilters.sortBy
@@ -62,6 +75,7 @@ struct ItemLibrary: PagingLibrary, SearchablePagingLibrary, WithRandomElementLib
             currentFilters: environment.filters
         )
         self.parent = parent
+        self.persistenceID = resolvedPersistenceID
     }
 
     func makeMenuContent(environment: Binding<Environment>) -> AnyView {
@@ -310,13 +324,29 @@ private struct ItemLibraryBody<Content: View>: View {
                 viewModel.environment.filters = filters
             }
         #if os(tvOS)
-            .background(alignment: .top) {
-                if !router.isRootOfPath {
-                    FocusedPosterCinematicBackgroundView()
+            // Upstream ships no tvOS filter UI. Mount our multi-pill drawer the
+            // same way iOS mounts its own (`navigationBarFilterDrawer`): as a
+            // `safeAreaBar`, publishing `IsSafeAreaBarApplied` so the shared
+            // `PagingLibraryView` folds the reserved inset into the grid layout.
+            // That preference is load-bearing — the `CollectionVGrid` sets
+            // `.ignoresSafeArea(edges: .vertical)`, so without it the posters
+            // scroll underneath the pills instead of below them.
+            .safeAreaBar(edge: .top, spacing: 0) {
+                    if enabledDrawerFilters.isNotEmpty {
+                        LibraryHeader(filterViewModel: filterViewModel)
+                    }
                 }
-            }
+                .preference(
+                    key: IsSafeAreaBarApplied.self,
+                    value: enabledDrawerFilters.isNotEmpty
+                )
+                .background(alignment: .top) {
+                    if !router.isRootOfPath {
+                        FocusedPosterCinematicBackgroundView()
+                    }
+                }
         #else
-            .navigationBarFilterDrawer(
+                .navigationBarFilterDrawer(
                 viewModel: filterViewModel,
                 types: enabledDrawerFilters
             )
@@ -328,7 +358,7 @@ private struct ItemLibraryBody<Content: View>: View {
     // Unconditional by design (see the restore path in `init`). `itemTypes` is
     // not persisted — it is a structural preset, not a user filter.
     private func persistLibraryFilters(from filters: ItemFilterCollection) {
-        guard let id = viewModel.library.parent.id else { return }
+        guard let id = viewModel.library.persistenceID else { return }
 
         let storedFilters = StoredValues[.User.libraryFilters(parentID: id)]
             .mutating(\.sortBy, with: filters.sortBy)

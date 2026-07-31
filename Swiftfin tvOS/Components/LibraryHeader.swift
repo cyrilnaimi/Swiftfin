@@ -12,14 +12,18 @@ import SwiftUI
 
 /// tvOS filter drawer. Upstream ships no tvOS filter UI (the tvOS branch of
 /// `ItemLibraryBody` only renders a cinematic background), so this mirrors the
-/// iOS `NavigationBarFilterDrawer` pattern: a title row stacked above a
-/// horizontal scroll of capsule filter pills. Each pill opens its own selector
-/// sheet (`NavigationRoute.filter`) and tints to the accent color when active.
+/// iOS `NavigationBarFilterDrawer` pattern as a horizontal scroll of capsule
+/// filter pills. Each pill opens its own selector sheet
+/// (`NavigationRoute.filter`) and tints to the accent color when active.
+///
+/// Deliberately renders no title: the shared `PagingLibraryView` already sets a
+/// `navigationTitle`, and drawing a second one here is what previously forced
+/// hiding the whole nav bar — which stripped the top bar off Média→library
+/// screens. Mounted as a `safeAreaBar` so `PagingLibraryView` can reserve grid
+/// space for it via `IsSafeAreaBarApplied`.
 struct LibraryHeader: View {
 
     // MARK: - Properties
-
-    let title: String
 
     @ObservedObject
     var filterViewModel: FilterViewModel
@@ -30,8 +34,16 @@ struct LibraryHeader: View {
     @Default(.Customization.Library.enabledDrawerFilters)
     private var enabledDrawerFilters
 
+    /// `itemTypes` and `query` are excluded: the former is a structural preset
+    /// on the aggregate Movies/TV Shows tabs (`filters: .init(itemTypes:)`) and
+    /// the latter belongs to search — neither is a user-chosen filter, so
+    /// neither should make the Reset pill appear.
     private var hasActiveFilters: Bool {
-        filterViewModel.currentFilters.isNotEmpty
+        var current = filterViewModel.currentFilters
+        current.itemTypes = ItemFilterCollection.default.itemTypes
+        current.query = ItemFilterCollection.default.query
+
+        return current != .default
     }
 
     @Router
@@ -40,52 +52,56 @@ struct LibraryHeader: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-
-            Text(title)
-                .font(.title2)
-                .fontWeight(.semibold)
-                .foregroundStyle(.primary)
-                .padding(.leading, 60)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(enabledDrawerFilters, id: \.self) { type in
-                        FilterPillButton(
-                            isActive: filterViewModel.isFilterSelected(type: type)
-                        ) {
-                            router.route(to: .filter(type: type, viewModel: filterViewModel))
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text(pillTitle(for: type))
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                Image(systemName: "chevron.down")
-                                    .font(.caption2.weight(.bold))
-                                    .opacity(0.75)
-                            }
-                        }
-                    }
-
-                    if hasActiveFilters {
-                        FilterPillButton(isActive: false, role: .destructive) {
-                            filterViewModel.reset(filterType: nil)
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .symbolRenderingMode(.hierarchical)
-                                Text(L10n.reset)
-                            }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 14) {
+                ForEach(enabledDrawerFilters, id: \.self) { type in
+                    FilterPillButton(
+                        isActive: filterViewModel.isFilterSelected(type: type)
+                    ) {
+                        router.route(to: .filter(type: type, viewModel: filterViewModel))
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(pillTitle(for: type))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Image(systemName: "chevron.down")
+                                .font(.caption2.weight(.bold))
+                                .opacity(0.75)
                         }
                     }
                 }
-                .padding(.horizontal, 60)
-                .padding(.vertical, 20) // breathing room for the focus lift
+
+                if hasActiveFilters {
+                    FilterPillButton(isActive: false, role: .destructive, action: reset) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "xmark.circle.fill")
+                                .symbolRenderingMode(.hierarchical)
+                            Text(L10n.reset)
+                        }
+                    }
+                }
             }
-            .tint(accentColor)
-            .focusSection()
+            .padding(.horizontal, 60)
+            .padding(.vertical, 20) // breathing room for the focus lift
         }
-        .padding(.vertical, 8)
+        .tint(accentColor)
+        .focusSection()
+    }
+
+    // MARK: - Reset
+
+    /// Clears the user-chosen filters while preserving the structural
+    /// `itemTypes` preset and any active search `query`.
+    ///
+    /// `filterViewModel.reset(filterType: nil)` assigns `.default` wholesale,
+    /// which drops `itemTypes` — on the Movies tab that turns the tab into an
+    /// everything-tab. (Upstream's iOS drawer has the same problem.)
+    private func reset() {
+        var reset = ItemFilterCollection.default
+        reset.itemTypes = filterViewModel.currentFilters.itemTypes
+        reset.query = filterViewModel.currentFilters.query
+
+        filterViewModel.currentFilters = reset
     }
 
     // MARK: - Pill Title

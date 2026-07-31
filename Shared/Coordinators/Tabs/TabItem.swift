@@ -101,7 +101,7 @@ extension TabItem {
     static func library(
         title: String,
         systemName: String,
-        parentID: String,
+        persistenceID: String,
         filters: ItemFilterCollection
     ) -> TabItem {
         TabItem(
@@ -109,16 +109,19 @@ extension TabItem {
             title: title,
             systemImage: systemName
         ) {
-            // A stable, non-nil parent id is required so per-library stored
-            // values (filters/sort) save and restore — a nil id makes the
-            // parentID-keyed StoredValues writes/reads silently no-op. The
-            // synthetic parent has no `type`, so `makeBaseItemParameters` hits
-            // its `default` case and does NOT inject a `parentID` scope: the
-            // aggregate server-wide Movies/TV Shows query is unchanged.
+            // These aggregate tabs have no backing server item, so the parent
+            // stays id-less and a stable `persistenceID` is supplied instead.
+            // Without it, the parentID-keyed StoredValues reads/writes silently
+            // no-op and the chosen filter/sort never sticks — the whole point of
+            // the fix. It must NOT be the parent's `id`: `makeBaseItemParameters`
+            // forwards a non-nil `parent.id` to the server as a `parentID` scope
+            // (its `switch` default case), and a synthetic id matches nothing,
+            // so the tab would come back empty.
             PagingLibraryView(
                 library: ItemLibrary(
-                    parent: BaseItemDto(id: parentID, name: title),
-                    filters: filters
+                    parent: BaseItemDto(name: title),
+                    filters: filters,
+                    persistenceID: persistenceID
                 )
             )
             .if(UIDevice.isTV) { view in
