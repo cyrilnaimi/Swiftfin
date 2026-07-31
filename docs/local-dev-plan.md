@@ -530,3 +530,84 @@ Deployed v2 to the Apple TV (blue-violet icon, `org.jellyfin.swiftfin.local.cnai
 2. **Filter pills overlap the poster grid.** The `.safeAreaInset(edge: .top) { LibraryHeader }` mount in `ItemLibraryBody` isn't reserving space against the shared `PagingLibraryView`'s `CollectionVGrid` on tvOS — posters render under the pills. Fix: reserve top space for the header (the shared `PagingLibraryView`/`CollectionVGrid` likely ignores the safe-area inset on tvOS; may need a top content-inset/padding on the grid instead of `safeAreaInset`, mirroring how the old tvOS `PagingLibraryView` did it).
 
 Both are M3 (filter-UI mount) layout issues — exactly the visual-iteration work M3 was flagged to need. The v2 branch is otherwise sound (M0–M6 build green). **Decision (2026-07-12): pause v2, keep `local/appletv-dev` (P9) as the shipping build, carry only the new blue-violet icon back to it.** Resume v2 by fixing #1 and #2 above, then re-run the M7 checklist.
+
+---
+
+# Session 2026-07-31 — v2 synced to upstream/main, M7 blockers fixed, deployed
+
+> v2 is now **11 commits ahead of `upstream/main`, 0 behind**, deployed to the Apple TV. Restore point before this work: tag **`local-v2-pre-sync-2026-07-31`**.
+
+## A. Sync target: `upstream/main`, not tag `1.5`
+
+v2's base `1dfbb7a1` sat **one real commit before `1.5`** — and that commit is `7891e273 Content Groups (#2075)`, which deletes the whole `Swiftfin tvOS/Views/HomeView/` folder plus `PosterButton`/`PosterHStack`/`SearchView`/the ItemView scroll views, moving them into `Shared/` behind a `ContentGroup` abstraction. That is exactly what had invalidated M5.
+
+`git merge-tree` showed **the same 3 conflicts for `1.5` and for `upstream/main`**, so `main` cost nothing extra and additionally brought PR **#2096** (`250166f0`), whose `AlternateLayoutView` + `IsSafeAreaBarApplied` grid-inset machinery is what the tvOS filter drawer needed. Decision: target `main`.
+
+Conflicts resolved in `8a49f330`:
+
+| File | Resolution |
+|---|---|
+| `Shared/Objects/Libraries/ItemLibrary.swift` | upstream's tvOS branch; M2 full-filter persistence preserved; M3's header mount + broad `toolbar(.hidden)` dropped |
+| `Shared/Coordinators/Tabs/MainTabView.swift` | upstream's `defaultTabCoordinator` (`TabItem.contentGroup` replaces `TabItem.home`) + M4 args re-applied |
+| `Swiftfin tvOS/Views/HomeView/HomeView.swift` | **accepted upstream's deletion**, folder removed incl. our `CinematicNextUpView.swift` |
+
+M1 (keychain filters) and M2 (played/unplayed exclusion) auto-merged untouched. Local-distinction layer is conflict-free.
+
+**Now redundant — do not re-apply:** the never-blank hero, Recently-Added row de-dup, late-arrival re-render, and series-art-first landscape images are all upstream behavior now (`_shouldBeResolved` / `hasContent`). P8.1/P8.4/P8.5 are obsolete as code; only the hero *ordering* intent survived.
+
+## B. Both M7 blockers fixed — the real root causes
+
+1. **Top bar missing (blocker #1).** The 2026-07-12 diagnosis was right: M3's `.toolbar(.hidden, for: .navigationBar)` on `ItemLibraryBody`. Removed. **Upstream already hides the nav bar surgically per aggregate tab** in `TabItem.library` (`.if(UIDevice.isTV)`), so nothing needed replacing — `LibraryHeader` simply stopped drawing its own title, leaving `PagingLibraryView`'s `navigationTitle` as the single source.
+2. **Pills overlapping the grid (blocker #2).** `.safeAreaInset` could *never* have worked: `PagingLibraryView`'s `CollectionVGrid` sets `.ignoresSafeArea(edges: .vertical)`. Two parts:
+   - mount via `.safeAreaBar` + publish `IsSafeAreaBarApplied` (upstream's own iOS mechanism), and
+   - **`LibraryElement.layout(for:options:insets:)` discarded the insets on tvOS** — `insets: .init(vertical: 0, …)` hardcoded, because #2096 only wired iOS. That was the actual blocker; the preference alone did nothing.
+
+## C. Regression caught during the sync — M4 would have emptied the Movies/TV tabs
+
+M4 gave the synthetic tab parent `BaseItemDto(id: "tab-movies")`, on the premise that a type-less parent hits `setParentParameters`' default case *without* injecting a `parentID` scope. Upstream's replacement `ItemLibrary.makeBaseItemParameters` does the **opposite**: its `switch` default case sets `parameters.parentID = parentID`. Shipping M4 as written would have sent `parentID=tab-movies` and returned nothing.
+
+Fix: the key travels as a dedicated **`ItemLibrary.persistenceID`** (defaults to `parent.id`) that never reaches a request — same separation upstream uses for library style via `LibraryParent.pagingLibraryID`. Kept opt-in rather than globally falling back to `displayTitle`: an unconditional fallback would start restoring stored sort onto preset-sorted libraries such as the iOS Recently Added group, whose `sortBy: [.dateCreated]` would be clobbered by the stored default of `.sortName`.
+
+Also fixed: the **Reset pill was permanently visible and destructive** on the aggregate tabs. Their `currentFilters` always differs from `.default` because it carries the structural `itemTypes: [.movie]` preset, and `reset(filterType: nil)` assigns `.default` wholesale — so tapping Reset dropped the type scoping and turned the Movies tab into an everything-tab. `hasActiveFilters` and `reset()` now both exclude `itemTypes`/`query`. **Upstream's iOS drawer has the same bug** → upstream PR candidate.
+
+## D. Home + drawer per user review (on-device)
+
+- **Hero shows À suivre.** Upstream falls back Continue Watching → Recently Added, so an account with nothing mid-play opens on an untitled unsorted strip. `CinematicSelectionContentGroupViewModel` now owns a `NextUpLibrary` and exposes `heroSource` (`resume`/`nextUp`/`recentlyAdded`/`none`); Recently Added stays the last resort so the hero is never empty. New `CinematicNextUpContentGroup` renders the À suivre *row* only when Next Up isn't in the hero, and `CinematicRecentlyAddedContentGroup` keys off `heroSource` the same way. iOS untouched. This is P8.4's intent in ~40 lines instead of a HomeView rewrite.
+- **Filter drawer is one segmented bar** (`b5c6bc64`), aligned to the grid. Alignment needed both `ignoresSafeArea(edges: .horizontal)` and `edgePadding`: as `safeAreaBar` content the drawer inherits the tvOS ~80pt overscan safe area while the grid ignores it and insets a flat 60, so they could not otherwise line up.
+- **Hero labels: reverted** (`73bb7cd7`). Dropping the episode name left "Series / SxEx", less informative than the 1.x hero it aimed to match. Upstream's `SxEx • title` (truncated) is what we keep.
+- `.category` is a new upstream `ItemFilterType` (Live TV) and the default drawer set is `allCases`, so a "Catégorie" segment shows on every library. Uncheck under Réglages → Filtres → Bibliothèque if unwanted.
+
+## E. KNOWN UNFIXED — upstream tvOS ItemView opens scrolled past its header
+
+**Symptom:** open an item from a poster row; the page appears at the top, then ~0.4 s later scrolls down and focus sits on the Saison row instead of the Lire button. Push Up to recover.
+
+**Not ours** — `git log --name-only` over our whole range touches no `ItemView` / `ContentGroupVStack` / `ContentGroupScrollView` file, and the user confirmed the scroll predates our changes. **Upstream knows:** `Shared/Views/ItemView/Components/Headers/RegularSimpleHeaderContentGroup.swift:12` says `// TODO: Fix the header's initial focus.`
+
+**Instrumented trace** (NSLog on focus transitions, since scripted key events to the Simulator are blocked by macOS Accessibility, `osascript` error 1002):
+
+```
+appear:  isEnhanced=false groups=["itemView-header", "<season-uuid>", "cast-and-crew", "about"]
+focus:   nil -> <season-uuid>        (+391 ms)
+```
+
+`focusedGroupID` **never becomes `itemView-header`** — the outer `defaultFocus` never takes effect; focus just resolves to whatever the engine picks.
+
+**Hypotheses tested and DISPROVEN (do not retry):**
+1. *Header type swap.* `contentSize` starts `.zero` → `isCompact` true → `CompactSimpleHeader`, then flips to `RegularSimpleHeader` after `defaultFocus` resolved. Real (observed: `isCompact: true -> false`), but filling the ZStack before measuring changed nothing user-visible.
+2. *Play button not focusable.* `.disabled(provider.mediaPlayerItemProvider == nil)` — nil until the playback-info request returns (~matches the 391 ms), and disabled views aren't focusable on tvOS. Removing it on tvOS did not help either.
+
+**Remaining suspects:** `ContentGroupVStack` attaches `.focused(binding, equals:)` through `.eraseToAnyView()`, and `AnyView` erases the structural identity `defaultFocus` needs to resolve its target; and/or the two nested `.userInitiated` `defaultFocus` declarations (outer on the VStack, inner on the header's play button) cancelling out.
+
+**Decision: not fixed.** A workaround means force-asserting focus on a timer inside `Shared/` — a divergence that makes every future sync worse, for an upstream bug upstream has already flagged. Good candidate to report to jellyfin/Swiftfin *with the trace above*, which is more than their TODO has today.
+
+## F. Deploy + tooling notes
+
+- **`Scripts/deploy-appletv.sh` is unaffected** — it already passes `-skipMacroValidation` and uses its own `SwiftfinDeploy` DerivedData. The weekly Shortcut keeps working. Deployed 2026-07-31; profile valid until **vendredi 07 août 20:44**.
+- **CLI builds now need `-skipMacroValidation`.** Xcode 26.3 requires re-approval of the `swift-case-paths` and `StatefulMacro` macro packages; without the flag `xcodebuild` fails at `ComputeTargetDependencyGraph`, which looks like a code error but is not.
+- **Simulator gotcha that cost real time:** the build's bundle id is **`org.jellyfin.swiftfin.local.cnaimi`** (from the gitignored `DevelopmentTeam.xcconfig`), not `org.jellyfin.swiftfin.local`. Installing the new build while launching the *old* id silently ran a months-old app — both commands report success. **Always resolve the id from the built `Info.plist` and md5-compare installed vs built binary before trusting a visual test.**
+
+## G. Verified on the simulator / device
+
+✅ pills above the grid on main-bar tabs and Média→library · ✅ top bar retained · ✅ glass row-title buttons focus + route · ✅ tvOS 26 sidebar · ✅ hero = À suivre, "Ajoutés récemment" below · ✅ unplayed filter applies, Reset appears only when active · ✅ Release build green · ✅ deployed to Apple TV
+
+⚠️ **Still unverified:** filter persistence across app relaunch, and the cinematic focused-poster blur (suspect the new `.tabViewStyle(.sidebarAdaptable)` from #2107 paints over `MainTabView`'s `.background`).
