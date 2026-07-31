@@ -614,3 +614,43 @@ focus:   nil -> <season-uuid>        (+391 ms)
 ✅ pills above the grid on main-bar tabs and Média→library · ✅ top bar retained · ✅ glass row-title buttons focus + route · ✅ tvOS 26 sidebar · ✅ hero = À suivre, "Ajoutés récemment" below · ✅ unplayed filter applies, Reset appears only when active · ✅ Release build green · ✅ deployed to Apple TV
 
 ⚠️ **Still unverified:** filter persistence across app relaunch, and the cinematic focused-poster blur (suspect the new `.tabViewStyle(.sidebarAdaptable)` from #2107 paints over `MainTabView`'s `.background`).
+
+## H. Next iteration — pick-up checklist
+
+**State at pause (2026-07-31 evening).** Branch `local/appletv-dev-v2`, tree clean, **11 ahead / 0 behind `upstream/main`**, everything pushed to `origin`. Deployed to the Apple TV; free-provisioning profile expires **vendredi 07 août ~21:22** — re-run `Scripts/deploy-appletv.sh` (or the "Swiftfin.local update" Shortcut) before then or the app dies.
+
+Restore points: tag `local-v2-pre-sync-2026-07-31` (v2 before this sync), plus the older `local-working-2026-07-12-P8/-P9/-P9-icon`. `local/appletv-dev` (P9) is still the untouched legacy shipping branch.
+
+Commits this session:
+
+```
+ff2d6a74 docs: two more disproven hypotheses for the ItemView focus bug
+00e46f24 docs: record the sync, M7 fixes, unfixed focus bug
+73bb7cd7 Revert "drop episode names from cinematic hero labels"
+b5c6bc64 feat(tvOS): filter drawer as one segmented bar, aligned to the grid
+e8f9fcd7 feat(tvOS): drop episode names from cinematic hero labels
+2c06b922 fix(tvOS): reserve grid space for the drawer; promote Next Up to hero
+78105d26 fix(tvOS): remount drawer as safeAreaBar; persistenceID
+8a49f330 Merge upstream/main into local/appletv-dev-v2
+```
+
+### 1. Verify on hardware (was not reachable from the sim)
+
+- [ ] **Filter persistence across a full app relaunch.** Set *Non lu* on Séries TV, quit, relaunch. Two independent paths must both hold: the main-bar tabs (keyed by `ItemLibrary.persistenceID` = `"tab-tvshows"`/`"tab-movies"`) and a real Média→library (keyed by `parent.id`). M1's keychain backing means it should even survive a reinstall.
+- [ ] **Cinematic focused-poster blur.** Confirm `Réglages → Personnaliser → "Arrière-plan cinématographique"` is on, then focus posters on Accueil and inside a library. Leading suspect if still dead: `.tabViewStyle(.sidebarAdaptable)` (new in `main` via #2107) painting over `MainTabView`'s `.background { FocusedPosterCinematicBackgroundView() }`. If confirmed, move that background inside the tab content instead of behind the TabView.
+- [ ] New player, sign-in persistence, no crashes.
+
+### 2. Then cut v2 over to be the shipping branch
+
+Once the above pass: tag `local-working-<date>-v2`, rename `local/appletv-dev` → `local/appletv-dev-legacy`, rename v2 → `local/appletv-dev`, keep old tags as fallback. Update `Scripts/deploy-appletv.sh` only if the branch name is referenced (it is not today).
+
+### 3. Upstream PR candidates — genuinely ours, genuinely upstream bugs
+
+- **tvOS grid insets ignored.** `LibraryElement.layout(for:options:insets:)` hardcodes `insets: .init(vertical: 0, …)` on tvOS, silently discarding the caller's insets that #2096 threaded through for iOS. Any tvOS `safeAreaBar` over a `PagingLibraryView` is unusable without this.
+- **Reset wipes structural `itemTypes`.** `NavigationBarFilterDrawer` calls `reset(filterType: nil)`, which assigns `.default` wholesale — on an aggregate tab carrying `itemTypes: [.movie]` that turns it into an everything-tab, and the Reset button is permanently visible there because `currentFilters != .default` always holds. Fix as done in `LibraryHeader`: exclude `itemTypes`/`query` from both the visibility test and the reset.
+- **`ItemView` initial focus** — report with the trace and the four disproven hypotheses in §E rather than a patch.
+- **`makeBaseItemParameters` sends a synthetic `parentID`** — arguably intended, but worth raising: its `switch` default case forwards any non-nil `parent.id`, so a parent that exists only client-side cannot carry an id. `persistenceID` is our workaround.
+
+### 4. Still ours, still divergent — re-check on every sync
+
+`ItemLibrary.persistenceID` · full-filter persistence + keychain `StoredValues` (M1/M2) · played/unplayed mutual exclusion · `LibraryHeader` segmented drawer + its mount in `ItemLibraryBody` · tvOS grid insets · `heroSource` / `CinematicNextUpContentGroup` · local-distinction layer (icon, display name, entitlements, deploy script).
