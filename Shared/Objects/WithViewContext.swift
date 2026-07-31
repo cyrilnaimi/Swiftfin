@@ -23,6 +23,10 @@ struct ViewContext: OptionSet {
     static let isInParent = Self(rawValue: 1 << 4)
     static let isInResume = Self(rawValue: 1 << 5)
     static let withConstrainedSize = Self(rawValue: 1 << 6)
+    /// Set on the tvOS cinematic hero strip, where the episode name is dropped
+    /// from poster labels: the hero already shows the selected item's logo and
+    /// artwork above, so repeating the name in every card is noise.
+    static let isInCinematicHero = Self(rawValue: 1 << 7)
 }
 
 extension EnvironmentValues {

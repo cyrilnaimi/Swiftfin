@@ -377,6 +377,11 @@ private struct BaseItemDtoPosterContextMenu: View {
 
 private struct BaseItemDtoPosterLabel: View {
 
+    /// The cinematic hero already shows the selected item's logo and artwork,
+    /// so the episode name is dropped from its cards — series + SxEx only.
+    @ViewContextContains(.isInCinematicHero)
+    private var isInCinematicHero
+
     let item: BaseItemDto
 
     var body: some View {
@@ -428,7 +433,9 @@ private struct BaseItemDtoPosterLabel: View {
                     Text(indexLabel)
                 }
 
-                Text(item.displayTitle)
+                if !isInCinematicHero {
+                    Text(item.displayTitle)
+                }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
