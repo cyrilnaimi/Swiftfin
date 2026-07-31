@@ -51,11 +51,22 @@ struct LibraryHeader: View {
 
     // MARK: - Body
 
+    @ViewBuilder
+    private var segmentDivider: some View {
+        Rectangle()
+            .fill(.white.opacity(0.15))
+            .frame(width: 1, height: 30)
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 14) {
-                ForEach(enabledDrawerFilters, id: \.self) { type in
-                    FilterPillButton(
+            HStack(spacing: 0) {
+                ForEach(Array(enabledDrawerFilters.enumerated()), id: \.element) { index, type in
+                    if index > 0 {
+                        segmentDivider
+                    }
+
+                    FilterSegmentButton(
                         isActive: filterViewModel.isFilterSelected(type: type)
                     ) {
                         router.route(to: .filter(type: type, viewModel: filterViewModel))
@@ -72,7 +83,9 @@ struct LibraryHeader: View {
                 }
 
                 if hasActiveFilters {
-                    FilterPillButton(isActive: false, role: .destructive, action: reset) {
+                    segmentDivider
+
+                    FilterSegmentButton(isActive: false, isDestructive: true, action: reset) {
                         HStack(spacing: 6) {
                             Image(systemName: "xmark.circle.fill")
                                 .symbolRenderingMode(.hierarchical)
@@ -81,9 +94,20 @@ struct LibraryHeader: View {
                     }
                 }
             }
-            .padding(.horizontal, 60)
-            .padding(.vertical, 20) // breathing room for the focus lift
+            // Inner inset so a segment's highlight capsule never touches the
+            // container's edge.
+            .padding(4)
+            .backport
+            .glassEffect(.regular, in: .capsule)
+            .padding(.vertical, 16)
+            // Align the bar's leading edge with the poster grid's. The grid is a
+            // CollectionVGrid that ignores the tvOS overscan safe area and insets
+            // its content by a flat `edgePadding`; this bar is `safeAreaBar`
+            // content, so it would otherwise sit at safe-area + our own padding
+            // and land noticeably further right than the first poster.
+            .padding(.horizontal, EdgeInsets.edgePadding)
         }
+        .ignoresSafeArea(edges: .horizontal)
         .tint(accentColor)
         .focusSection()
     }
@@ -149,77 +173,74 @@ struct LibraryHeader: View {
     }
 }
 
-/// Capsule-shaped filter pill modeled after the iOS `NavigationDrawerLabelStyle`:
-/// thin material background, stroke outline, accent tint when active.
-private struct FilterPillButton<Label: View>: View {
+/// A single segment of the filter bar. The bar itself owns the glass container;
+/// each segment is its own focusable button that fills a capsule highlight when
+/// focused, and the accent color when its filter is active.
+private struct FilterSegmentButton<Label: View>: View {
 
     let isActive: Bool
-    var role: ButtonRole?
+    var isDestructive: Bool = false
     let action: () -> Void
     @ViewBuilder
     let label: () -> Label
 
     var body: some View {
-        Button(role: role, action: action) {
+        Button(action: action) {
             label()
                 .font(.callout.weight(.semibold))
-                .foregroundStyle(textStyle)
-                .padding(.horizontal, 22)
-                .padding(.vertical, 14)
-                .frame(minWidth: 100)
-                .background {
-                    Capsule()
-                        .fill(backgroundStyle)
-                }
-                .overlay {
-                    Capsule()
-                        .strokeBorder(strokeStyle, lineWidth: 1.5)
-                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
                 .contentShape(Capsule())
         }
-        .buttonStyle(FilterPillButtonStyle())
-    }
-
-    private var textStyle: AnyShapeStyle {
-        if role == .destructive {
-            return AnyShapeStyle(.tint)
-        }
-        return isActive ? AnyShapeStyle(.white) : AnyShapeStyle(.primary)
-    }
-
-    private var backgroundStyle: AnyShapeStyle {
-        if isActive {
-            return AnyShapeStyle(.tint)
-        }
-        return AnyShapeStyle(.ultraThinMaterial)
-    }
-
-    private var strokeStyle: AnyShapeStyle {
-        if isActive {
-            return AnyShapeStyle(.tint.opacity(0.9))
-        }
-        return AnyShapeStyle(.white.opacity(0.18))
+        .buttonStyle(
+            FilterSegmentButtonStyle(
+                isActive: isActive,
+                isDestructive: isDestructive
+            )
+        )
     }
 }
 
-/// Subtle tvOS focus style — scale up on focus without the heavy white card
-/// chrome of `.buttonStyle(.card)`, keeping the capsule shape intact.
-private struct FilterPillButtonStyle: ButtonStyle {
+/// Segment styling. Focus is shown by filling the segment rather than scaling
+/// it: the segments sit inside a shared container, so a scale effect would push
+/// neighbours around and overflow the container's edge.
+private struct FilterSegmentButtonStyle: ButtonStyle {
 
     @Environment(\.isFocused)
     private var isFocused: Bool
 
+    let isActive: Bool
+    let isDestructive: Bool
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(isFocused ? 1.08 : 1.0)
-            .shadow(
-                color: isFocused ? Color.black.opacity(0.35) : .clear,
-                radius: isFocused ? 16 : 0,
-                x: 0,
-                y: isFocused ? 8 : 0
-            )
-            .brightness(isFocused ? 0.06 : 0)
+            .foregroundStyle(foregroundStyle)
+            .background {
+                Capsule().fill(backgroundStyle)
+            }
             .animation(.snappy(duration: 0.18), value: isFocused)
             .opacity(configuration.isPressed ? 0.85 : 1)
+    }
+
+    private var foregroundStyle: AnyShapeStyle {
+        if isActive {
+            AnyShapeStyle(.white)
+        } else if isFocused {
+            AnyShapeStyle(.black)
+        } else if isDestructive {
+            AnyShapeStyle(.tint)
+        } else {
+            AnyShapeStyle(.primary)
+        }
+    }
+
+    private var backgroundStyle: AnyShapeStyle {
+        if isActive {
+            AnyShapeStyle(.tint)
+        } else if isFocused {
+            AnyShapeStyle(.white)
+        } else {
+            AnyShapeStyle(.clear)
+        }
     }
 }
