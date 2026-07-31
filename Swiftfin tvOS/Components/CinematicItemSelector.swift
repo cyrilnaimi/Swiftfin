@@ -73,7 +73,6 @@ struct CinematicItemSelector<Item: Poster, TopContent: View>: View {
                     action(item)
                 }
                 .frame(height: 400)
-                .withViewContext(.isInCinematicHero)
             }
         }
         .background(alignment: .top) {
