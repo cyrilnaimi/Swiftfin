@@ -92,7 +92,25 @@ enum ItemFilterType: String, CaseIterable, Displayable, Identifiable, Storable, 
             (
                 displayTitle: displayTitle,
                 keyPath: \ItemFilterCollection.traits.asAnyItemFilter,
-                setter: { $1.currentFilters.traits = $0.map(ItemTrait.init) },
+                setter: { newFilters, viewModel in
+                    var traits = newFilters.map(ItemTrait.init)
+
+                    // `.isPlayed` and `.isUnplayed` are mutually exclusive — if both end up
+                    // selected, drop whichever was already selected before this change so the
+                    // newly tapped one survives.
+                    if traits.contains(.isPlayed), traits.contains(.isUnplayed) {
+                        let oldTraits = viewModel.currentFilters.traits
+                        if oldTraits.contains(.isUnplayed) {
+                            traits.removeAll { $0 == .isUnplayed }
+                        } else if oldTraits.contains(.isPlayed) {
+                            traits.removeAll { $0 == .isPlayed }
+                        } else {
+                            traits.removeAll { $0 == .isUnplayed }
+                        }
+                    }
+
+                    viewModel.currentFilters.traits = traits
+                },
                 selectorType: .multi
             )
         case .years:
