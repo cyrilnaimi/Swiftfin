@@ -654,3 +654,78 @@ Once the above pass: tag `local-working-<date>-v2`, rename `local/appletv-dev` �
 ### 4. Still ours, still divergent — re-check on every sync
 
 `ItemLibrary.persistenceID` · full-filter persistence + keychain `StoredValues` (M1/M2) · played/unplayed mutual exclusion · `LibraryHeader` segmented drawer + its mount in `ItemLibraryBody` · tvOS grid insets · `heroSource` / `CinematicNextUpContentGroup` · local-distinction layer (icon, display name, entitlements, deploy script).
+
+# Session 2026-08-01 — hardware review: playback start, gray play button, focus bug (2 more disproven), filter bar rejected
+
+> Review-only session on the deployed v2 build. **No code committed.** Two focus-bug fixes were written, built, tested and reverted; the working tree is clean at `3fcbf7cf`. Decision at the end of the session: **rebuild a clean branch carrying only the filter pills + the home rework** (see §E).
+
+## A. Playback start is genuinely slow on hardware — root cause found, not ours
+
+Symptom (user, on the Apple TV): several seconds of black screen and no audio after pressing **Lire**. Not an impression.
+
+Pressing Lire runs four things **strictly serially** before a single video byte is requested:
+
+| Step | Where | Cost on device |
+|---|---|---|
+| `GET /Items/{id}` full item refetch | `BaseItemDto.swift:613` via `MediaPlayerItem+Build.swift:44` | 1 RTT, and redundant — the item page just fetched it |
+| **Bitrate test: 5 MB download** | `MediaPlayerManager.swift:452`, `PlaybackBitrateTestSize.regular = 5_000_000` | ~1–4 s over Wi-Fi |
+| `POST /Items/{id}/PlaybackInfo` | `MediaPlayerItem+Build.swift:92` | 1 RTT + server probe |
+| VLC opens the URL and buffers | — | plus ffmpeg startup **if transcoding** |
+
+The bitrate test only runs when max bitrate is `.auto`, which **is the default** (`SwiftfinDefaults.swift:345`). Its second-order cost is worse than the download: the measured value is written into the device profile as `maxStaticBitrate`/`maxStreamingBitrate` (`DeviceProfile.swift:70-73`) and sent as `playbackInfo.maxStreamingBitrate`. **A mediocre Wi-Fi measurement can flip a high-bitrate file from DirectPlay to transcode** — which is where the multi-second delay and the missing audio actually come from.
+
+Why the simulator never showed it: the Mac's link to M1Center swallows 5 MB in ~50 ms and measures high, so it direct-plays.
+
+Also: **there is no loading indicator for `.loadingItem`.** Nothing in `VideoPlayerContainerView` renders for that state — only `PlaybackProgress` greys out. The user stares at pure black. Cheap local improvement if wanted.
+
+**Levers, no code:** Réglages → *Qualité de lecture* → *Débit maximum*: **Automatique → Maximum** skips the test entirely (guard at `MediaPlayerManager.swift:445`) and stops advertising a low ceiling. Or keep Auto and set *Test de bitrate → Taille du test* to smallest (1 MB). Then check the player's playback-information supplement for DirectPlay vs Transcode.
+
+**Latent wart worth noting:** `VideoPlayer.appMaximumBitrate` (`:240`, default `.max`) and `VideoPlayer.Playback.appMaximumBitrate` (`:344`, default `.auto`) declare the **same** `UserKey` string `"appMaximumBitrate"` with **different defaults**. Same for `appMaximumBitrateTest`. `getMaxBitrate`'s default argument reads the former, everything else the latter. Benign today (same stored key) but a trap.
+
+## B. Gray play button on hardware — narrowed to the glass tint, `disabled` ruled out
+
+`PlayButton.swift:146-151` is the **only** surface on tvOS that pushes `accentColor` through `glassEffect(tint:)`. Every purple thing still visible (unplayed corner triangles, checkboxes, poster indicators, active filter segment) is a plain `.fill(accentColor)`. Other glass tints in the app are white or `.gray.opacity(0.3)`. So "purple everywhere except Lire" is precisely the signature of the glass-tint path failing — the accent color itself is fine (confirmed on the simulator screenshot: purple unplayed triangles).
+
+Two mechanisms can grey that button:
+
+1. **Disabled → `subduedColor` = `.gray.opacity(0.3)`** (`GlassEffect.swift:77,116`) via `.disabled(provider.mediaPlayerItemProvider == nil)` (`PlayButton.swift:167`).
+2. **Device glass rendering** differing from the simulator.
+
+**(1) is ruled out, and this corrects §E hypothesis 2.** `ItemContentGroupProvider.makeGroups` assigns `mediaPlayerItemProvider` at `:54` — *before* returning groups — and `ContentGroupViewModel.fullRefresh` only publishes `groups` and flips state to `.content` after `makeGroups` returns. So the header never renders with a nil provider on a playable item. There is **no pending playback-info request at item-page load**; `getPlaybackItemProvider` is synchronous. §E H2's premise ("nil until the playback-info request returns, which matches the 391 ms almost exactly") was factually wrong — that 391 ms was never the play button resolving.
+
+**Still to check on the device (not reachable from the sim, where it renders purple):**
+- [ ] **Réglages → Général → Accessibilité → Augmenter le contraste / Réduire la transparence.** Either flattens tvOS glass to an opaque material and would kill a glass tint while leaving plain accent fills purple — matches the symptom exactly. Leading suspect.
+- [ ] Can the button be focused and pressed, and is it purple **when focused**? If it focuses and plays, it is not disabled → rendering, and the fix is a real `Capsule().fill(accentColor)` behind the glass (small `Shared/` divergence) + an upstream report.
+
+## C. ItemView focus bug — two more hypotheses DISPROVEN (5 and 6), plus the key discriminating observation
+
+**The observation that reframes everything (user, this session): the bug is series-only. Movies focus Lire correctly; TV shows focus the Saison row.**
+
+Movies do not get a `SeriesEpisodeContentGroup`; series and seasons do. So the cause lives in that group, **not** in the header — which retires the *rationale* behind H1–H4, all of which worked on the header or the play button. It also matches the §E trace: `focusedGroupID` resolved to `<season-uuid>`, i.e. the `SeriesEpisodeContentGroup`, never to `itemView-header`.
+
+On a series page there are **four** `.userInitiated` default-focus claims below the header's one, and `DefaultFocusEvaluationPriority` has only `.automatic` and `.userInitiated` — so the header (already `.userInitiated`) **cannot outrank them**:
+
+| File | Claim |
+|---|---|
+| `SeriesEpisodeContentGroup+SeasonSelector.swift:66` | `$focusedSeason → preferredSelection` |
+| `SeriesEpisodeContentGroup+EpisodeCollection.swift:194` | `$focusedElement → preferredElementID` |
+| `SeriesEpisodeContentGroup+EpisodeCollection.swift:206` | `$focusedSection → .episodes` |
+| `SeriesEpisodeContentGroup+EpisodeCard.swift:201` | `$focusedElement → .artwork` |
+
+**5. *First-pass compact header remount.* DISPROVEN — reverted.** `ItemView.contentSize` starts `.zero`, so `isCompact = contentSize.width < 600` is true on the first layout pass: a Compact header is built, then swapped for the Regular one once measured. All four headers share `id: "itemView-header"` and `ContentGroupVStack` erases to `AnyView`, so the swap tears down the header subtree with its `@FocusState` and its `defaultFocus` after focus has already resolved — and `defaultFocus` is never re-evaluated. For *enhanced* items it looked even better: the first scroll view mounted is `BlurredNavigationBarScrollView`, which passes no `focusedGroupID` and declares **no `defaultFocus` at all** (`:35`). Tried `isCompact` returning `false` under `#if os(tvOS)` (the window is always full-screen there; matches upstream's own `// TODO: isCompact determination by available width`). Built, installed md5-verified, tested: **movies fine, series unchanged.** Killed by the series/movie split — movies go through the identical header swap and were already correct.
+
+**6. *Demote the episode group's competing claims.* DISPROVEN — reverted.** Lowered `SeasonSelector:66`, `EpisodeCollection:194` and `EpisodeCollection:206` from `.userInitiated` to `.automatic`, on the theory that `.automatic` still decides focus *within* its own scope once entered but stops competing in the page-level initial resolution. Left `EpisodeCard:201` alone (per-cell, cannot compete at page level). Built, installed md5-verified, tested: **series unchanged.** So priority is **not** the lever — the sibling group wins regardless of tier, presumably by scope/geometry order rather than by `DefaultFocusEvaluationPriority`.
+
+**Where this leaves it.** The *mechanism* (a sibling content group taking the initial focus that the header claims) is now strongly indicated by the series/movie split, but neither available lever moves it. Six hypotheses down. Remaining untried options are all worse than the bug: removing those declarations outright (breaks season/episode landing behavior when focus legitimately enters the row), or force-asserting `focusedGroupID = "itemView-header"` on first appear — divergence inside `Shared/` that makes every future sync worse, for a bug upstream has flagged with `// TODO: Fix the header's initial focus.`
+
+**Decision unchanged: do not fix locally. Report upstream** with the trace, the series/movie split, the four competing claims, and all six disproven hypotheses. That is a far better report than upstream's TODO, and the split is the part they most likely don't know.
+
+## D. Filter bar — segmented design rejected, plus a reactivity bug
+
+User verdict on hardware: the single-glass-capsule segmented bar (`b5c6bc64`) is **not good**, and **choosing a filter does not visibly change the bar**.
+
+The reactivity complaint is not explained by the code as read: `FilterViewModel.currentFilters` is `@Published` (`FilterViewModel.swift:41`), `LibraryHeader` holds the view model as `@ObservedObject`, `router.route(to: .filter(type:viewModel:))` hands the selector **the same instance**, and both `isActive:` (`isFilterSelected(type:)`) and `pillTitle(for:)` read `currentFilters`. So this needs a **repro before a fix** — and note that reverting the visual design does **not** necessarily fix it, since the pill version read exactly the same state the same way. One structural suspect to check first: the drawer is `safeAreaBar` content, so if `ItemLibrary` (a struct owning `filterViewModel`) is recreated on filter change, the bar could end up observing a different instance than the one being mutated.
+
+## E. Decision — rebuild a clean branch: filter pills + home rework only
+
+The user's call at the end of this session: drop the segmented bar, keep the multi-pill drawer, and reduce the branch to **only the filter pills addition and the homepage rework**. Plan to be validated before execution — see the next session's section.
