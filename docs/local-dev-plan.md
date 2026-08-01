@@ -736,6 +736,18 @@ Per the user's decision in §E above: drop the segmented filter bar, keep the pi
 
 **Restore points:** tag `local-v2-2026-08-01` (v2 as deployed + the review docs). Branches `local/appletv-dev-v2` and `local/appletv-dev` (P9 legacy) untouched.
 
+## Why a v3 branch at all (asked 2026-08-01)
+
+The change the user actually asked for was one file — revert the segmented drawer, keep its alignment fix. A new branch was **not** required for that; the same result was reachable on v2 with two commits. v3 exists because "a clean version with only the pills and the home rework" was read as a clean *history*: 9 focused commits off `upstream/main` instead of v2's 20, which carry the upstream merge, the hero-labels experiment and its revert, and the paused-M7 notes. The real payoff is extracting the three upstream PR candidates later.
+
+**`local/appletv-dev-v2` is NOT dead.** It is intact, tagged `local-v2-2026-08-01`, and is the build currently running on the Apple TV until v3 is deployed. Options B (collapse onto v2) and C (move the v2 pointer to v3's commit) were offered; the user chose **A — keep v3 as the working branch, v2 retained as the fallback**. So three branches are in play on purpose:
+
+| Branch | Role |
+|---|---|
+| `local/appletv-dev-v3` | **working / shipping candidate** |
+| `local/appletv-dev-v2` | fallback; what is deployed today |
+| `local/appletv-dev` | P9 legacy fallback, untouched since 2026-07-12 |
+
 ## Branch contents (8 commits off `upstream/main`)
 
 | Commit | What |
