@@ -46,6 +46,7 @@ struct DefaultContentGroupProvider: ContentGroupProvider {
         #if os(tvOS)
         let cinematicSelectionContentGroup = CinematicSelectionContentGroup(
             resumeLibrary: ResumeItemsLibrary(mediaTypes: [.video]),
+            nextUpLibrary: NextUpLibrary(),
             recentlyAddedLibrary: RecentlyAddedLibrary()
         )
 
@@ -59,9 +60,17 @@ struct DefaultContentGroupProvider: ContentGroupProvider {
         )
         #endif
 
+        #if os(tvOS)
+        // Shares the hero's view model so the row can tell whether Next Up has
+        // been promoted into the hero, and so Next Up is fetched only once.
+        CinematicNextUpContentGroup(
+            viewModel: cinematicSelectionContentGroup.viewModel
+        )
+        #else
         PosterGroup(
             library: NextUpLibrary()
         )
+        #endif
 
         if Defaults[.Customization.Home.showRecentlyAdded] {
             #if os(tvOS)
