@@ -729,3 +729,53 @@ The reactivity complaint is not explained by the code as read: `FilterViewModel.
 ## E. Decision — rebuild a clean branch: filter pills + home rework only
 
 The user's call at the end of this session: drop the segmented bar, keep the multi-pill drawer, and reduce the branch to **only the filter pills addition and the homepage rework**. Plan to be validated before execution — see the next session's section.
+
+# Session 2026-08-01 (part 2) — clean rebuild as `local/appletv-dev-v3`
+
+Per the user's decision in §E above: drop the segmented filter bar, keep the pills, and reduce the branch to the filter feature + the home rework. Rebuilt from scratch on `upstream/main` so the history is eight focused, reviewable commits instead of a merge plus fix-ups.
+
+**Restore points:** tag `local-v2-2026-08-01` (v2 as deployed + the review docs). Branches `local/appletv-dev-v2` and `local/appletv-dev` (P9 legacy) untouched.
+
+## Branch contents (8 commits off `upstream/main`)
+
+| Commit | What |
+|---|---|
+| `chore(local)` | Distinction layer: display name, blue-violet icon, keychain entitlements for **Debug and Release**, deploy script, gitignore |
+| `fix(tvOS)` grid insets | `LibraryElement` honors the caller's insets — prerequisite for the drawer. **Upstream PR candidate** |
+| `feat(tvOS)` pill drawer | `LibraryHeader` pills + `safeAreaBar` mount + `IsSafeAreaBarApplied`; Reset/`itemTypes` fixes are **upstream PR candidates** |
+| `feat(tvOS)` persistence | Keychain `StoredValues` destination, full filter set, `ItemLibrary.persistenceID` |
+| `feat` played/unplayed | Mutually exclusive traits |
+| `feat(tvOS)` home hero | `heroSource` + `CinematicNextUpContentGroup` |
+| `docs` | Tracking docs carried forward |
+| `style` | SwiftFormat `redundantSendable` — see below |
+
+**Verification that the rebuild lost nothing:** `git diff local-v2-2026-08-01 HEAD` touches **exactly one file**, `LibraryHeader.swift` (pill vs segmented). Everything else is byte-identical to the deployed v2. Debug and Release both build green.
+
+## The filter bar design decision
+
+The segmented single-glass-capsule bar (`b5c6bc64`) is dropped; the multi-pill drawer is restored. **The alignment fix from that same commit is kept** — the user called it mandatory. Reverting `b5c6bc64` wholesale would have re-broken alignment, since it bundled both changes. The pill version keeps `.padding(.vertical, 20)` rather than the segmented bar's 16: pills scale to 1.08 on focus and need the extra room, whereas segments filled in place.
+
+## KNOWN ISSUE, deliberately not fixed — the drawer does not visibly update when a filter is chosen
+
+Reported on hardware. **Left as-is by decision**, recorded here rather than chased. The code as read does not explain it: `FilterViewModel.currentFilters` is `@Published`, `LibraryHeader` observes the view model, `router.route(to: .filter(type:viewModel:))` hands the selector the same instance, and both `isActive:` and `pillTitle(for:)` read `currentFilters`.
+
+Important: **this is not a property of the segmented design.** The pill version reads the same state the same way, so restoring the pills will not fix it. First suspect to check when it is picked up: the drawer is `safeAreaBar` content, and `ItemLibrary` is a struct that *owns* its `filterViewModel` — if the library value is recreated on a filter change, the drawer may end up observing a different instance than the sheet mutates. Needs a live repro before any fix.
+
+## SwiftFormat version drift — worth deciding on
+
+`ScrollEdgeEffectStyle.swift` losing its explicit `Sendable` was **not** a hand edit or a merge artifact (an earlier note in this doc called it one — corrected here). The project's `Run SwiftFormat` build phase runs `swiftformat .` over the entire repo on every build, and the installed SwiftFormat is **0.61.1** while `.swiftformat` declares **0.59.1**. The `redundantSendable` rule is new in 0.61, so the file is rewritten on every build regardless of what anyone touches — which is how it silently entered v2.
+
+Currently 1 file of 733. It will recur after every upstream sync on any file upstream writes with an explicit `Sendable` on a non-public type. **Pinning SwiftFormat to 0.59.1 would remove the drift and match upstream CI** — recommended eventually, not done here to avoid changing the toolchain as a side effect of a feature branch.
+
+## Release-mode deployment (confirmed)
+
+`Scripts/deploy-appletv.sh:25` sets `CONFIG="Release"` and installs from `Release-appletvos`, so **the Apple TV has always received a Release build** — no change needed. The Debug builds in this session only ever went to the simulator. The Release configuration is also why the distinction layer must carry `Swiftfin tvOSRelease.entitlements`: without that keychain group the filter persistence would fail at runtime on the deployed build specifically.
+
+## Still open
+
+- [ ] Deploy v3 to the Apple TV (Release) and verify: pills render + align, filter persistence across relaunch, home hero, no crashes.
+- [ ] Gray play button — the two device checks in §B above (accessibility contrast/transparency settings; whether the button focuses and plays).
+- [ ] Playback start — try *Débit maximum: Maximum* and compare.
+- [ ] Cutover: tag `local-working-<date>-v3`, then make v3 the shipping branch.
+- [ ] Report the `ItemView` focus bug upstream (series-only, four competing claims, six disproven hypotheses).
+- [ ] Nothing pushed to `origin` yet — v3 and the new tag are local-only.
