@@ -21,10 +21,12 @@ struct CinematicSelectionContentGroup: ContentGroup {
 
     init(
         resumeLibrary: ResumeItemsLibrary,
+        nextUpLibrary: NextUpLibrary,
         recentlyAddedLibrary: RecentlyAddedLibrary
     ) {
         self.viewModel = CinematicSelectionContentGroupViewModel(
             resumeLibrary: resumeLibrary,
+            nextUpLibrary: nextUpLibrary,
             recentlyAddedLibrary: recentlyAddedLibrary
         )
     }
@@ -72,8 +74,7 @@ struct CinematicSelectionContentGroup: ContentGroup {
         }
 
         var body: some View {
-            let items = viewModel.hasResumeItems ? viewModel.resumeViewModel.elements.elements : viewModel.recentlyAddedViewModel.elements
-                .elements
+            let items = viewModel.heroItems
 
             CinematicItemSelector(
                 items: items
@@ -101,13 +102,34 @@ struct CinematicSelectionContentGroup: ContentGroup {
     }
 }
 
+/// The "Next Up" row. Skipped when Next Up has been promoted into the hero,
+/// which happens whenever there is nothing mid-play — see `heroItems`.
+struct CinematicNextUpContentGroup: ContentGroup {
+
+    let id = "cinematic-next-up"
+    let viewModel: CinematicSelectionContentGroupViewModel
+
+    var _shouldBeResolved: Bool {
+        viewModel.heroSource != .nextUp && viewModel.nextUpViewModel.elements.isNotEmpty
+    }
+
+    func body(with viewModel: CinematicSelectionContentGroupViewModel) -> some View {
+        PosterHStackLibrarySection(
+            viewModel: viewModel.nextUpViewModel,
+            group: viewModel.nextUpGroup
+        )
+    }
+}
+
+/// The "Recently Added" row. Skipped when Recently Added is what the hero is
+/// showing, so the same items never appear twice.
 struct CinematicRecentlyAddedContentGroup: ContentGroup {
 
     let id = "cinematic-recently-added"
     let viewModel: CinematicSelectionContentGroupViewModel
 
     var _shouldBeResolved: Bool {
-        viewModel.hasResumeItems && viewModel.recentlyAddedViewModel.elements.isNotEmpty
+        viewModel.heroSource != .recentlyAdded && viewModel.recentlyAddedViewModel.elements.isNotEmpty
     }
 
     func body(with viewModel: CinematicSelectionContentGroupViewModel) -> some View {
@@ -122,8 +144,21 @@ final class CinematicSelectionContentGroupViewModel: ViewModel, WithRefresh {
 
     typealias Background = CinematicSelectionContentGroupViewModel
 
+    /// Which library the hero is currently drawing from.
+    enum HeroSource {
+        case resume
+        case nextUp
+        case recentlyAdded
+        case none
+    }
+
+    let nextUpGroup: PosterGroup<NextUpLibrary>
     let recentlyAddedGroup: PosterGroup<RecentlyAddedLibrary>
     let resumeViewModel: PagingLibraryViewModel<ResumeItemsLibrary>
+
+    var nextUpViewModel: PagingLibraryViewModel<NextUpLibrary> {
+        nextUpGroup.viewModel
+    }
 
     var recentlyAddedViewModel: PagingLibraryViewModel<RecentlyAddedLibrary> {
         recentlyAddedGroup.viewModel
@@ -138,20 +173,55 @@ final class CinematicSelectionContentGroupViewModel: ViewModel, WithRefresh {
         resumeViewModel.elements.isNotEmpty
     }
 
+    /// Hero priority: Continue Watching, then Next Up, then Recently Added.
+    ///
+    /// Upstream skips straight from Continue Watching to Recently Added, so any
+    /// account with nothing mid-play gets an unsorted grab-bag as the first
+    /// thing on screen. Next Up is the far more useful "what do I watch now"
+    /// answer, and Recently Added stays as the last resort so the hero is never
+    /// empty. Recently Added is still reachable as a row below.
+    var heroSource: HeroSource {
+        if hasResumeItems {
+            .resume
+        } else if nextUpViewModel.elements.isNotEmpty {
+            .nextUp
+        } else if recentlyAddedViewModel.elements.isNotEmpty {
+            .recentlyAdded
+        } else {
+            .none
+        }
+    }
+
+    var heroItems: [BaseItemDto] {
+        switch heroSource {
+        case .resume:
+            resumeViewModel.elements.elements
+        case .nextUp:
+            nextUpViewModel.elements.elements
+        case .recentlyAdded:
+            recentlyAddedViewModel.elements.elements
+        case .none:
+            []
+        }
+    }
+
     var hasContent: Bool {
-        hasResumeItems || recentlyAddedViewModel.elements.isNotEmpty
+        heroSource != .none
     }
 
     init(
         resumeLibrary: ResumeItemsLibrary,
+        nextUpLibrary: NextUpLibrary,
         recentlyAddedLibrary: RecentlyAddedLibrary
     ) {
         self.resumeViewModel = PagingLibraryViewModel(library: resumeLibrary, pageSize: 20)
+        self.nextUpGroup = PosterGroup(library: nextUpLibrary)
         self.recentlyAddedGroup = PosterGroup(library: recentlyAddedLibrary)
 
         super.init()
 
         resumeViewModel.objectWillChange
+            .merge(with: nextUpViewModel.objectWillChange)
             .merge(with: recentlyAddedViewModel.objectWillChange)
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
@@ -167,9 +237,10 @@ final class CinematicSelectionContentGroupViewModel: ViewModel, WithRefresh {
 
     func refresh() async {
         async let resume: Void = resumeViewModel.refresh()
+        async let nextUp: Void = nextUpViewModel.refresh()
         async let recentlyAdded: Void = recentlyAddedViewModel.refresh()
 
-        _ = await (resume, recentlyAdded)
+        _ = await (resume, nextUp, recentlyAdded)
     }
 }
 

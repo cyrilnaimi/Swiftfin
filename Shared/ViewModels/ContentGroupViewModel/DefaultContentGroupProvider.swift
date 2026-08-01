@@ -46,6 +46,7 @@ struct DefaultContentGroupProvider: ContentGroupProvider {
         #if os(tvOS)
         let cinematicSelectionContentGroup = CinematicSelectionContentGroup(
             resumeLibrary: ResumeItemsLibrary(mediaTypes: [.video]),
+            nextUpLibrary: NextUpLibrary(),
             recentlyAddedLibrary: RecentlyAddedLibrary()
         )
 
@@ -59,14 +60,22 @@ struct DefaultContentGroupProvider: ContentGroupProvider {
         )
         #endif
 
+        #if os(tvOS)
+        // Shares the hero's view model so the row can tell whether Next Up has
+        // been promoted into the hero, and so Next Up is fetched only once.
+        CinematicNextUpContentGroup(
+            viewModel: cinematicSelectionContentGroup.viewModel
+        )
+        #else
         PosterGroup(
             library: NextUpLibrary()
         )
+        #endif
 
         // No global "Recently Added" row on tvOS: the per-library "Latest in"
-        // rows below carry the same items, so it only duplicated them. Next Up
-        // stays the first row; the hero still falls back to Recently Added
-        // when nothing is mid-play.
+        // rows below carry the same items, so it only duplicated them. Recently
+        // Added remains reachable as the hero's last resort, so the hero is
+        // never empty.
         #if !os(tvOS)
         if Defaults[.Customization.Home.showRecentlyAdded] {
             PosterGroup(
