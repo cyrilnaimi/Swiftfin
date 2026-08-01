@@ -68,6 +68,10 @@ enum StoredValues {
         enum StorageDestination {
             case defaults
             case sql
+            /// Persists to the keychain. Unlike `defaults`/`sql` — which live in the
+            /// app's data container and are wiped on reinstall — keychain entries
+            /// survive an app reinstall (e.g. weekly Xcode re-deploy on tvOS).
+            case keychain
         }
 
         let defaultValue: () -> Value
@@ -91,6 +95,18 @@ enum StoredValues {
             )
         }
 
+        /// Stable keychain key for this value. Derived from `ownerID` + the
+        /// resolved field/name so it is identical across app reinstalls.
+        var _keychainKey: String {
+            let resolvedName: String = if field == name || field == nil {
+                name
+            } else {
+                "\(field!)-\(name)"
+            }
+
+            return "storedvalue-\(ownerID)-\(resolvedName)"
+        }
+
         init(
             _ name: String,
             ownerID: String,
@@ -103,9 +119,12 @@ enum StoredValues {
             self.name = name
             self.ownerID = ownerID
 
-            // tvOS only supports user defaults storage
+            // tvOS doesn't support the CoreStore SQL backend, so fall back to
+            // user defaults — unless an explicitly persistent destination
+            // (keychain) was requested, which we honor so the value survives
+            // an app reinstall.
             #if os(tvOS)
-            self.storage = .defaults
+            self.storage = storage == .keychain ? .keychain : .defaults
             #else
             self.storage = storage
             #endif
@@ -137,6 +156,12 @@ enum StoredValues {
                 )
 
                 return fetchedValue ?? key.defaultValue()
+            case .keychain:
+                guard let data = Container.shared.keychainService().getData(key._keychainKey),
+                      let value = try? JSONDecoder().decode(Value.self, from: data)
+                else { return key.defaultValue() }
+
+                return value
             }
         }
         set {
@@ -152,6 +177,9 @@ enum StoredValues {
                     field: key.field ?? key.name,
                     key: key.name
                 )
+            case .keychain:
+                guard let data = try? JSONEncoder().encode(newValue) else { return }
+                Container.shared.keychainService().set(data, forKey: key._keychainKey)
             }
         }
     }

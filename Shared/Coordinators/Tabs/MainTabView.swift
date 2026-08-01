@@ -36,11 +36,13 @@ struct MainTabView: View {
             TabItem.library(
                 title: L10n.tvShowsCapitalized,
                 systemName: "tv",
+                persistenceID: "tab-tvshows",
                 filters: .init(itemTypes: [.series])
             )
             TabItem.library(
                 title: L10n.movies,
                 systemName: "film",
+                persistenceID: "tab-movies",
                 filters: .init(itemTypes: [.movie])
             )
             TabItem.search
