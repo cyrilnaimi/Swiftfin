@@ -28,20 +28,45 @@ struct ItemLibrary: PagingLibrary, SearchablePagingLibrary, WithRandomElementLib
     let filterViewModel: FilterViewModel
     let parent: BaseItemDto
 
+    /// Key under which this library's filters and sort are persisted.
+    ///
+    /// Defaults to `parent.id`. The aggregate tvOS main-bar tabs (Movies / TV
+    /// Shows) have a synthetic parent with no server id, so they pass a stable
+    /// literal instead: giving that parent a real `id` is not an option because
+    /// `makeBaseItemParameters` forwards `parent.id` to the server as a
+    /// `parentID` scope, and a synthetic id matches nothing. Same idea as
+    /// `LibraryParent.pagingLibraryID`, which backs library-style persistence.
+    let persistenceID: String?
+
     init(
         parent: BaseItemDto,
-        filters: ItemFilterCollection? = nil
+        filters: ItemFilterCollection? = nil,
+        persistenceID: String? = nil
     ) {
         var environment = Environment(
             grouping: parent.groupings?.defaultSelection,
             filters: filters ?? .default
         )
 
-        if let id = parent.id, Defaults[.Customization.Library.rememberSort] {
+        let resolvedPersistenceID = persistenceID ?? parent.id
+
+        // Always restore persisted filters + sort (not just sort). The
+        // `rememberSort` Defaults gate is intentionally not applied: the
+        // Defaults library doesn't push a new `default:` onto existing
+        // installs, so gating made selections silently disappear across
+        // launches, and "remember my selections" is the expected behavior.
+        // `itemTypes` is deliberately NOT restored — it is a structural preset
+        // (e.g. the Movies/TV Shows tabs) rather than a user-chosen filter.
+        if let id = resolvedPersistenceID {
             let storedFilters = StoredValues[.User.libraryFilters(parentID: id)]
 
             environment.filters.sortBy = storedFilters.sortBy
             environment.filters.sortOrder = storedFilters.sortOrder
+            environment.filters.genres = storedFilters.genres
+            environment.filters.letter = storedFilters.letter
+            environment.filters.tags = storedFilters.tags
+            environment.filters.traits = storedFilters.traits
+            environment.filters.years = storedFilters.years
         }
 
         self.environment = environment
@@ -50,6 +75,7 @@ struct ItemLibrary: PagingLibrary, SearchablePagingLibrary, WithRandomElementLib
             currentFilters: environment.filters
         )
         self.parent = parent
+        self.persistenceID = resolvedPersistenceID
     }
 
     func makeMenuContent(environment: Binding<Environment>) -> AnyView {
@@ -283,7 +309,7 @@ private struct ItemLibraryBody<Content: View>: View {
             }
             .backport
             .onChange(of: filterViewModel.currentFilters) { _, newFilters in
-                rememberSort(from: newFilters)
+                persistLibraryFilters(from: newFilters)
             }
             .onReceive(
                 filterViewModel.$currentFilters
@@ -294,7 +320,7 @@ private struct ItemLibraryBody<Content: View>: View {
                 viewModel.environment.filters = filters
             }
         #if os(tvOS)
-            // Upstream ships no tvOS filter UI, so mount our pill drawer the
+            // Upstream ships no tvOS filter UI. Mount our multi-pill drawer the
             // same way iOS mounts its own (`navigationBarFilterDrawer`): as a
             // `safeAreaBar`, publishing `IsSafeAreaBarApplied` so the shared
             // `PagingLibraryView` folds the reserved inset into the grid layout.
@@ -323,14 +349,21 @@ private struct ItemLibraryBody<Content: View>: View {
         #endif
     }
 
-    private func rememberSort(from filters: ItemFilterCollection) {
-        guard let id = viewModel.library.parent.id,
-              Defaults[.Customization.Library.rememberSort]
-        else { return }
+    // Persist the user-chosen filters + sort so they survive navigation and
+    // relaunch (backed by the keychain — see StoredValues+User.libraryFilters).
+    // Unconditional by design (see the restore path in `init`). `itemTypes` is
+    // not persisted — it is a structural preset, not a user filter.
+    private func persistLibraryFilters(from filters: ItemFilterCollection) {
+        guard let id = viewModel.library.persistenceID else { return }
 
         let storedFilters = StoredValues[.User.libraryFilters(parentID: id)]
             .mutating(\.sortBy, with: filters.sortBy)
             .mutating(\.sortOrder, with: filters.sortOrder)
+            .mutating(\.genres, with: filters.genres)
+            .mutating(\.letter, with: filters.letter)
+            .mutating(\.tags, with: filters.tags)
+            .mutating(\.traits, with: filters.traits)
+            .mutating(\.years, with: filters.years)
 
         StoredValues[.User.libraryFilters(parentID: id)] = storedFilters
     }

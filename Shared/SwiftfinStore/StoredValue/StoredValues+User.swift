@@ -127,7 +127,11 @@ extension StoredValues.Keys {
             CurrentUserKey(
                 parentID,
                 field: "setting-libraryFilters",
-                default: ItemFilterCollection.default
+                default: ItemFilterCollection.default,
+                // Persist to the keychain so library filters survive an app
+                // reinstall (e.g. weekly Xcode re-deploy on tvOS). UserDefaults
+                // and CoreStore both live in the app container and are wiped.
+                storage: .keychain
             )
         }
 
