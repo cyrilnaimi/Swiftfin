@@ -294,13 +294,29 @@ private struct ItemLibraryBody<Content: View>: View {
                 viewModel.environment.filters = filters
             }
         #if os(tvOS)
-            .background(alignment: .top) {
-                if !router.isRootOfPath {
-                    FocusedPosterCinematicBackgroundView()
+            // Upstream ships no tvOS filter UI, so mount our pill drawer the
+            // same way iOS mounts its own (`navigationBarFilterDrawer`): as a
+            // `safeAreaBar`, publishing `IsSafeAreaBarApplied` so the shared
+            // `PagingLibraryView` folds the reserved inset into the grid layout.
+            // That preference is load-bearing — the `CollectionVGrid` sets
+            // `.ignoresSafeArea(edges: .vertical)`, so without it the posters
+            // scroll underneath the pills instead of below them.
+            .safeAreaBar(edge: .top, spacing: 0) {
+                    if enabledDrawerFilters.isNotEmpty {
+                        LibraryHeader(filterViewModel: filterViewModel)
+                    }
                 }
-            }
+                .preference(
+                    key: IsSafeAreaBarApplied.self,
+                    value: enabledDrawerFilters.isNotEmpty
+                )
+                .background(alignment: .top) {
+                    if !router.isRootOfPath {
+                        FocusedPosterCinematicBackgroundView()
+                    }
+                }
         #else
-            .navigationBarFilterDrawer(
+                .navigationBarFilterDrawer(
                 viewModel: filterViewModel,
                 types: enabledDrawerFilters
             )
