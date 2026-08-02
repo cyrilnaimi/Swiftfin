@@ -63,12 +63,12 @@ struct DefaultContentGroupProvider: ContentGroupProvider {
             library: NextUpLibrary()
         )
 
+        // No global "Recently Added" row on tvOS: the per-library "Latest in"
+        // rows below carry the same items, so it only duplicated them. Next Up
+        // stays the first row; the hero still falls back to Recently Added
+        // when nothing is mid-play.
+        #if !os(tvOS)
         if Defaults[.Customization.Home.showRecentlyAdded] {
-            #if os(tvOS)
-            CinematicRecentlyAddedContentGroup(
-                viewModel: cinematicSelectionContentGroup.viewModel
-            )
-            #else
             PosterGroup(
                 library: ItemLibrary(
                     parent: BaseItemDto(name: L10n.recentlyAdded),
@@ -79,8 +79,8 @@ struct DefaultContentGroupProvider: ContentGroupProvider {
                     )
                 )
             )
-            #endif
         }
+        #endif
 
         userViews
             .map(LatestInLibrary.init)
