@@ -34,7 +34,8 @@ protocol LibraryElement: Displayable, Hashable, Identifiable {
 
     static func layout(
         for libraryStyle: LibraryStyle,
-        options: LibraryStyleOptions
+        options: LibraryStyleOptions,
+        insets: EdgeInsets
     ) -> CollectionVGridLayout
 }
 
@@ -65,7 +66,8 @@ extension LibraryElement {
 
     static func layout(
         for libraryStyle: LibraryStyle,
-        options: LibraryStyleOptions
+        options: LibraryStyleOptions,
+        insets: EdgeInsets
     ) -> CollectionVGridLayout {
         let libraryStyle = options.normalized(libraryStyle)
 
@@ -73,18 +75,18 @@ extension LibraryElement {
         let gridLayout: CollectionVGridLayout = {
             switch libraryStyle.posterDisplayType {
             case .landscape:
-                .minWidth(220)
+                .minWidth(220, insets: insets)
             case .portrait, .square:
-                .minWidth(140)
+                .minWidth(140, insets: insets)
             }
         }()
 
         let phoneGridLayout: CollectionVGridLayout = {
             switch libraryStyle.posterDisplayType {
             case .landscape:
-                .columns(2)
+                .columns(2, insets: insets)
             case .portrait, .square:
-                .columns(3)
+                .columns(3, insets: insets)
             }
         }()
 
@@ -92,23 +94,41 @@ extension LibraryElement {
         case .grid:
             return UIDevice.isPhone ? phoneGridLayout : gridLayout
         case .list:
-            return .columns(libraryStyle.listColumnCount, insets: .zero, itemSpacing: 0, lineSpacing: 0)
+            return .columns(
+                libraryStyle.listColumnCount,
+                insets: .init(top: insets.top, leading: 0, bottom: insets.bottom, trailing: 0),
+                itemSpacing: 0,
+                lineSpacing: 0
+            )
         }
         #else
+        // Honor the caller's vertical insets. #2096 threaded `insets` through
+        // for iOS only; the tvOS branch hardcoded `vertical: 0`, which silently
+        // discarded them. Since `PagingLibraryView`'s grid sets
+        // `.ignoresSafeArea(edges: .vertical)`, those insets are the *only* way
+        // anything mounted as a `safeAreaBar` — the tvOS filter drawer — gets
+        // space reserved instead of having posters scroll underneath it.
+        let gridInsets = EdgeInsets(
+            top: insets.top,
+            leading: EdgeInsets.edgePadding,
+            bottom: insets.bottom,
+            trailing: EdgeInsets.edgePadding
+        )
+
         switch libraryStyle.displayType {
         case .grid:
             switch libraryStyle.posterDisplayType {
             case .landscape:
                 return .columns(
                     4,
-                    insets: .init(vertical: 0, horizontal: EdgeInsets.edgePadding),
+                    insets: gridInsets,
                     itemSpacing: EdgeInsets.edgePadding,
                     lineSpacing: EdgeInsets.edgePadding
                 )
             case .portrait, .square:
                 return .columns(
                     7,
-                    insets: .init(vertical: 0, horizontal: EdgeInsets.edgePadding),
+                    insets: gridInsets,
                     itemSpacing: EdgeInsets.edgePadding,
                     lineSpacing: EdgeInsets.edgePadding
                 )
@@ -116,7 +136,7 @@ extension LibraryElement {
         case .list:
             return .columns(
                 libraryStyle.listColumnCount,
-                insets: .init(vertical: 0, horizontal: EdgeInsets.edgePadding),
+                insets: gridInsets,
                 itemSpacing: EdgeInsets.edgePadding,
                 lineSpacing: EdgeInsets.edgePadding
             )
