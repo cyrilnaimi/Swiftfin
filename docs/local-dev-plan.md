@@ -1,6 +1,8 @@
 # Local Dev Plan — `local/appletv-dev`
 
-> **2026-07-12 — v2 upstream-rebuild in progress on branch `local/appletv-dev-v2`.** The migration plan from "Upstream Re-architecture & Reapply Plan" (below) is being executed. **M0–M6 done and building (Debug + Release green); M7 (on-device parity + cutover) pending user verification.** See the "v2 migration progress log" section at the very end of this file. `local/appletv-dev` remains the shipping branch until M7 cutover.
+> **2026-08-02 — CURRENT WORKING BRANCH IS `local/appletv-dev-v4` (tag `1.5` + 7 commits).** v3 was wiped after the user rejected it on the TV — its regressions were upstream-main UI redesigns, not our code. See "Session 2026-08-02" at the very end of this file. `local/appletv-dev-v2` (deployed) and `local/appletv-dev` (P9 legacy) remain untouched fallbacks.
+
+> _(2026-07-12 note, historical)_ v2 upstream-rebuild on branch `local/appletv-dev-v2`: M0–M6 done, M7 verified 2026-07-31, deployed.
 
 Consolidate local work into a clean dev branch, fix the real keychain root cause, and merge PR #1902 + #1882 (the appletv-stack player work) on top.
 
@@ -791,3 +793,40 @@ Currently 1 file of 733. It will recur after every upstream sync on any file ups
 - [ ] Cutover: tag `local-working-<date>-v3`, then make v3 the shipping branch.
 - [ ] Report the `ItemView` focus bug upstream (series-only, four competing claims, six disproven hypotheses).
 - [ ] Nothing pushed to `origin` yet — v3 and the new tag are local-only.
+
+# Session 2026-08-02 — v3 wiped; v4 = tag `1.5` + only the three wanted changes
+
+## Why v3 died
+
+User verdict on v3: the show page opens with a different layout (Play/Like buttons top-left instead of 1.5's big hero with a large play button at the bottom), the play button loses its accent color, the Settings comboboxes render differently, and initial focus does not land on the play button. **None of that was our code.** v3 was rebuilt on `upstream/main`, which since `1.5` redesigned the tvOS ItemView (ContentGroups header + `SeriesEpisodeContentGroup` focus claims), pushed `accentColor` through `glassEffect(tint:)` on the play button, and introduced the sidebar/new settings chrome. The App Store 1.5 build shows the correct behavior — so the base, not the branch, was the problem. Decision: **start from tag `1.5` and apply only the wanted features.**
+
+- v3 archived as tag **`local-v3-archive-2026-08-02`**, branch deleted (was never pushed).
+- `local/appletv-dev-v2` (deployed on the TV) and `local/appletv-dev` (P9) untouched as fallbacks.
+
+## `local/appletv-dev-v4` contents (7 commits on tag `1.5`)
+
+| Commit | What | Origin |
+|---|---|---|
+| `chore(local)` distinction layer | Name, blue-violet icon, Debug+Release keychain entitlements, deploy script, gitignore | cherry-pick `9addc390` |
+| `fix(local)` Debug access group | Keychain access group = bundle id | cherry-pick `0400265a` |
+| `feat` #2096 inset slice | Backport of upstream's `IsSafeAreaBarApplied`/insets threading (post-1.5), **plus** our tvOS honor-the-insets fix. 1.5's CollectionVGrid pin already has the `insets:` overloads | hand-port + `d0e6cd93` |
+| `feat(tvOS)` pill drawer | `LibraryHeader` pills, `safeAreaBar` mount — all APIs it uses (`isFilterSelected`, `NavigationRoute.filter`) already exist at 1.5 | cherry-pick `ec0d6d14` |
+| `feat(tvOS)` keychain persistence | `KeychainObservable`, full filter set, `persistenceID`, stable `tab-movies`/`tab-tvshows` ids | cherry-pick `dee5ebb2` |
+| `feat` played/unplayed exclusion | Mutually exclusive traits | cherry-pick `999c051e` |
+| `feat(tvOS)` home row removal | Global "Ajoutés récemment" row dropped on tvOS; home = hero → À suivre → per-library rows | new, minimal |
+
+**Deliberately NOT ported from v3:** the home-hero rework (`86b92495`, hero prefers Next Up + `CinematicNextUpContentGroup`). The user asked for *only* the pills, the keychain persistence, and the row removal — the hero keeps 1.5 stock behavior (Continue Watching, else Recently Added strip). If the untitled Recently-Added hero annoys again, that commit re-applies onto v4 with one path adjustment (`Swiftfin tvOS/Objects/ContentGroup/CinematicSelectionContentGroup.swift` at 1.5).
+
+Since v4's base predates upstream's ItemView/play-button/settings redesigns, the show page layout, play-button color, and initial focus are 1.5-stock by construction — the exact properties the user wanted back.
+
+## Carried-over known issues that still apply on v4
+
+- The drawer-doesn't-visibly-update issue (see 2026-08-01 §D) — the pill code reads the same `@Published` state, so if it reproduced on v3 it can reproduce here. Needs a live repro.
+- SwiftFormat 0.61.1 vs declared 0.59.1 (`redundantSendable`) — check what the build phase rewrites on the 1.5 tree; absorb as a `style:` commit or pin 0.59.1.
+- Playback-start slowness + no `.loadingItem` indicator: that analysis was against post-1.5 player code; 1.5's player differs. Re-evaluate only if the symptom is seen on v4.
+
+## Still open
+
+- [ ] Sim verification by user (scripted input still blocked by macOS Accessibility): pills render/align, filter survives relaunch, home rows, show page layout + focus + purple play button.
+- [ ] Deploy to the Apple TV via `Scripts/deploy-appletv.sh` / "Swiftfin.local update" Shortcut.
+- [ ] Nothing pushed to `origin` — v4 and the archive tag are local-only.
