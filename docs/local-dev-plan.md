@@ -815,7 +815,7 @@ User verdict on v3: the show page opens with a different layout (Play/Like butto
 | `feat` played/unplayed exclusion | Mutually exclusive traits | cherry-pick `999c051e` |
 | `feat(tvOS)` home row removal | Global "Ajoutés récemment" row dropped on tvOS; home = hero → À suivre → per-library rows | new, minimal |
 
-**Deliberately NOT ported from v3:** the home-hero rework (`86b92495`, hero prefers Next Up + `CinematicNextUpContentGroup`). The user asked for *only* the pills, the keychain persistence, and the row removal — the hero keeps 1.5 stock behavior (Continue Watching, else Recently Added strip). If the untitled Recently-Added hero annoys again, that commit re-applies onto v4 with one path adjustment (`Swiftfin tvOS/Objects/ContentGroup/CinematicSelectionContentGroup.swift` at 1.5).
+**Hero rework ported after all (9th commit).** It was first left out to keep the change minimal, but on the sim the user immediately flagged "the first row is still recently added" — that was 1.5's stock hero showing the Recently Added strip because nothing was mid-play. With the user's OK, `86b92495` (hero prefers À suivre, `CinematicNextUpContentGroup` row skipped when promoted) was cherry-picked; git followed the file's post-1.5 folder move on its own and the unrelated `parentLogoImageTag` drift (#2104) stayed out. Verified on the sim: hero = Only Murders backdrop + logo, strip = Next Up with series art + SxEx, next titled row = per-library.
 
 Since v4's base predates upstream's ItemView/play-button/settings redesigns, the show page layout, play-button color, and initial focus are 1.5-stock by construction — the exact properties the user wanted back.
 
@@ -825,8 +825,15 @@ Since v4's base predates upstream's ItemView/play-button/settings redesigns, the
 - SwiftFormat 0.61.1 vs declared 0.59.1 (`redundantSendable`) — check what the build phase rewrites on the 1.5 tree; absorb as a `style:` commit or pin 0.59.1.
 - Playback-start slowness + no `.loadingItem` indicator: that analysis was against post-1.5 player code; 1.5's player differs. Re-evaluate only if the symptom is seen on v4.
 
+## "Only Murders in the Building" missing poster in the À suivre row — root cause (2026-08-02)
+
+Not our bug, and mostly a server data gap. The À suivre **row** is `PosterGroup(library: NextUpLibrary())` whose default is `posterDisplayType: .portrait`, and at 1.5 `BaseItemDto.portraitImageSources` for an **episode** requests exactly one image: the **season's primary poster** (`imageSource(itemID: seasonID, .primary)`) — no fallback whatsoever (`BaseItemDto+Poster.swift:91`). So the card is empty iff that season has no poster in Jellyfin — typical for a freshly-added currently-airing season (here: S5), while older seasons in the row all have one. The cinematic hero/strip is unaffected because the landscape/cinematic chain falls back series-thumb → series-backdrop → episode-still, which is why the same show renders fine as the hero.
+
+Fix on the server: series → Season 5 → Images → add/download a primary image (or metadata-refresh that season with image download on). Optional local one-liner (upstream candidate): append `imageSource(itemID: seriesID, .primary, …)` as a fallback in the episode branch of `portraitImageSources`. Not applied — awaiting user's call.
+
 ## Still open
 
-- [ ] Sim verification by user (scripted input still blocked by macOS Accessibility): pills render/align, filter survives relaunch, home rows, show page layout + focus + purple play button.
+- [ ] Verified on sim 2026-08-02 by user: pills aligned ✓, home rows correct ✓ (hero À suivre after the 9th commit). **Filter keychain retention still unverified** — needs two user clicks; protocol: set Non lu on Films → agent runs `simctl uninstall` + reinstall + relaunch → user re-opens Films (uninstall wipes UserDefaults, so survival proves the keychain path).
+- [ ] Show-page layout/focus/play-button color on v4: 1.5-stock by construction, user spot-check recommended.
 - [ ] Deploy to the Apple TV via `Scripts/deploy-appletv.sh` / "Swiftfin.local update" Shortcut.
 - [ ] Nothing pushed to `origin` — v4 and the archive tag are local-only.
