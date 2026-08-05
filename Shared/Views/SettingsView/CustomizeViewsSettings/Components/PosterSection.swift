@@ -46,6 +46,7 @@ extension CustomizeViewsSettings {
             userData: .init(
                 isFavorite: true,
                 isPlayed: true,
+                key: "",
                 playbackPositionTicks: Duration.seconds(600).ticks
             )
         )
