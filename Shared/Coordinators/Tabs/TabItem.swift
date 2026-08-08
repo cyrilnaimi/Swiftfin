@@ -117,12 +117,15 @@ extension TabItem {
             // forwards a non-nil `parent.id` to the server as a `parentID` scope
             // (its `switch` default case), and a synthetic id matches nothing,
             // so the tab would come back empty.
+            // No inline title on tvOS: the tab bar already names this tab, and
+            // the navigation bar is hidden right below.
             PagingLibraryView(
                 library: ItemLibrary(
                     parent: BaseItemDto(name: title),
                     filters: filters,
                     persistenceID: persistenceID
-                )
+                ),
+                showsInlineTitle: false
             )
             .if(UIDevice.isTV) { view in
                 view.toolbar(.hidden, for: .navigationBar)
@@ -136,10 +139,13 @@ extension TabItem {
             title: L10n.media,
             systemImage: "rectangle.stack.fill"
         ) {
-            PagingLibraryView(library: UserViewLibrary())
-                .if(UIDevice.isTV) { view in
-                    view.toolbar(.hidden, for: .navigationBar)
-                }
+            PagingLibraryView(
+                library: UserViewLibrary(),
+                showsInlineTitle: false
+            )
+            .if(UIDevice.isTV) { view in
+                view.toolbar(.hidden, for: .navigationBar)
+            }
         }
     }
 

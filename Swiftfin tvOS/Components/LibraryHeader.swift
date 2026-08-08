@@ -10,6 +10,38 @@ import Defaults
 import JellyfinAPI
 import SwiftUI
 
+extension EnvironmentValues {
+
+    /// Set by `ItemLibraryBody` so the shared `PagingLibraryView` can draw the
+    /// filter drawer as the first row of its scrolling content. Passing the
+    /// view model rather than an erased view keeps the drawer's construction
+    /// next to the grid it belongs to.
+    @Entry
+    var libraryFilterViewModel: FilterViewModel? = nil
+}
+
+/// The drawer, resolved from the environment — nothing for libraries that have
+/// no filters, or when every drawer filter has been switched off in settings.
+///
+/// A view of its own rather than a property on `PagingLibraryView`: the value is
+/// injected by `ItemLibraryBody`, which sits *between* `PagingLibraryView` and
+/// its content, so an `@Environment` read declared on `PagingLibraryView`
+/// resolves against its parent's environment and always comes back nil.
+struct LibraryFilterDrawer: View {
+
+    @Default(.Customization.Library.enabledDrawerFilters)
+    private var enabledDrawerFilters
+
+    @Environment(\.libraryFilterViewModel)
+    private var filterViewModel
+
+    var body: some View {
+        if let filterViewModel, enabledDrawerFilters.isNotEmpty {
+            LibraryHeader(filterViewModel: filterViewModel)
+        }
+    }
+}
+
 /// tvOS filter drawer. Upstream ships no tvOS filter UI (the tvOS branch of
 /// `ItemLibraryBody` only renders a cinematic background), so this mirrors the
 /// iOS `NavigationBarFilterDrawer` pattern as a horizontal scroll of capsule
@@ -19,8 +51,13 @@ import SwiftUI
 /// Deliberately renders no title: the shared `PagingLibraryView` already sets a
 /// `navigationTitle`, and drawing a second one here is what previously forced
 /// hiding the whole nav bar — which stripped the top bar off Média→library
-/// screens. Mounted as a `safeAreaBar` so `PagingLibraryView` can reserve grid
-/// space for it via `IsSafeAreaBarApplied`.
+/// screens.
+///
+/// Drawn as the first row *inside* the library's `ScrollView` — it scrolls away
+/// with the posters, and Up from the first poster row lands on the pills
+/// because that move never leaves the scroll view. Mounting it as a
+/// `safeAreaBar` gave neither: the bar stayed pinned over the grid, and exiting
+/// the grid upwards went to the tab bar, which outranks a sibling focus group.
 struct LibraryHeader: View {
 
     // MARK: - Properties
@@ -81,18 +118,18 @@ struct LibraryHeader: View {
                     }
                 }
             }
-            // Align the drawer's leading edge with the poster grid's. The grid is
-            // a CollectionVGrid that ignores the tvOS overscan safe area and
-            // insets its content by a flat `edgePadding`; this drawer is
-            // `safeAreaBar` content, so it additionally inherits that ~80pt safe
-            // area and would otherwise sit noticeably right of the first poster.
-            // Both halves are required: ignore the horizontal safe area, then
-            // apply the same `edgePadding` the grid uses.
+            // Same `edgePadding` the poster grid applies, so the first pill and
+            // the first poster share a leading edge. The horizontal safe area
+            // needs no handling here any more: as scrolling content the drawer
+            // sits under the same `ignoresSafeArea(.all, edges: .horizontal)`
+            // that `LetterPickerBarModifier` already applies to the library.
             .padding(.horizontal, EdgeInsets.edgePadding)
             .padding(.vertical, 20) // breathing room for the focus lift
         }
-        .ignoresSafeArea(edges: .horizontal)
         .tint(accentColor)
+        // Keeps the pills one focus unit: coming up from any of the grid's seven
+        // columns lands on the nearest pill instead of requiring one directly
+        // above the focused poster.
         .focusSection()
     }
 

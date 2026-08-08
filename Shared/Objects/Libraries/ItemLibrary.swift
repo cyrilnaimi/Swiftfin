@@ -320,21 +320,16 @@ private struct ItemLibraryBody<Content: View>: View {
                 viewModel.environment.filters = filters
             }
         #if os(tvOS)
-            // Upstream ships no tvOS filter UI. Mount our multi-pill drawer the
-            // same way iOS mounts its own (`navigationBarFilterDrawer`): as a
-            // `safeAreaBar`, publishing `IsSafeAreaBarApplied` so the shared
-            // `PagingLibraryView` folds the reserved inset into the grid layout.
-            // That preference is load-bearing — the `CollectionVGrid` sets
-            // `.ignoresSafeArea(edges: .vertical)`, so without it the posters
-            // scroll underneath the pills instead of below them.
-            .safeAreaBar(edge: .top, spacing: 0) {
-                    if enabledDrawerFilters.isNotEmpty {
-                        LibraryHeader(filterViewModel: filterViewModel)
-                    }
-                }
-                .preference(
-                    key: IsSafeAreaBarApplied.self,
-                    value: enabledDrawerFilters.isNotEmpty
+            // Upstream ships no tvOS filter UI. Hand the filter view model down
+            // instead of mounting a drawer here: `PagingLibraryView` draws it as
+            // the first row of its `ScrollView`, so the pills scroll away with
+            // the posters and Up out of the first row reaches them. A
+            // `safeAreaBar` mount gave neither — it stayed pinned over the grid,
+            // and leaving the grid upwards is a focus-group exit, which the tab
+            // bar wins.
+            .environment(
+                    \.libraryFilterViewModel,
+                    enabledDrawerFilters.isNotEmpty ? filterViewModel : nil
                 )
                 .background(alignment: .top) {
                     if !router.isRootOfPath {
