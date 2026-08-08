@@ -831,8 +831,54 @@ Not our bug, and mostly a server data gap. The À suivre **row** is `PosterGroup
 
 Fix on the server: series → Season 5 → Images → add/download a primary image (or metadata-refresh that season with image download on). Optional local one-liner (upstream candidate): append `imageSource(itemID: seriesID, .primary, …)` as a fallback in the episode branch of `portraitImageSources`. Not applied — awaiting user's call.
 
+---
+
+# Session 2026-08-08 — the drawer leaves the safe area bar and becomes scrolling content
+
+**User report (on the TV):** (1) the pills *float* — scrolling down slides posters across them up to the top of the screen; the ask, clarified in the second round, is that they "stay on top of the 1st row so if you scroll down the pills disappear as the main menu bar"; (2) Up from the poster grid never gets back to the pills — it lands on the main menu bar instead.
+
+## Why a mounted bar could not deliver either
+
+The drawer was `safeAreaBar` content, i.e. a sibling of the grid, and the grid is a `CollectionVGrid` (UIKit collection view) with `.ignoresSafeArea(edges: .vertical)`. Two consequences:
+
+- **It cannot scroll away.** The bar is outside the scroll view by construction. Reserved space was a flow-layout `sectionInset.top`, and collapsing that on scroll is not an option either: `UICollectionVGrid.update` calls `snapshotReload()` on *any* layout change, so every collapse would crossfade the whole grid.
+- **It cannot win the Up press.** Leaving the collection upwards is a focus-*group* exit, and UIKit tab bars are a prioritized focus group — they take those exits. A sibling drawer with its own `.focusSection()` is never preferred over the tab bar.
+
+A first attempt (pin the grid below the bar by honoring the top safe area, `local` commit not kept) fixed the overlap and nothing else — the user confirmed Up still went to the menu bar. That is the observation that ruled out geometry and pointed at group priority.
+
+## What shipped — tvOS browses with a native `ScrollView`
+
+`PagingLibraryView` now has two element paths. iOS keeps upstream's `CollectionVGrid` verbatim (`collectionElementsView`, insets and all). tvOS uses `scrollingElementsView`: a `ScrollView` over a `VStack` of **drawer + `LazyVGrid`**, so the pills are the first row of the scrolling content. They scroll away with the posters like the menu bar, and Up from the first poster row is now movement *inside one scroll view*, which never reaches the tab-bar hand-off.
+
+Details worth keeping:
+
+- **Columns mirror the old layout exactly** — `gridColumnCount` reproduces the tvOS branch of `LibraryElement.layout`: 4 landscape, 7 otherwise, `listColumnCount` for list style, `edgePadding` for item and line spacing. Verified on the sim: pill leading edge and first poster leading edge both land on x=120px @2x = 60pt.
+- **Paging replaces `onReachedBottomEdge`** with `elementDidAppear`, which fires two rows out and is guarded on `background.is(.gettingNextPage)`.
+- **`VStack`, not `LazyVStack`**, around the grid: the grid stays lazy, but the drawer is always materialized, so it is always focusable.
+- **The drawer is a view, not a property** (`LibraryFilterDrawer` in `LibraryHeader.swift`). It reads `\.libraryFilterViewModel`, injected by `ItemLibraryBody`. Declaring that `@Environment` on `PagingLibraryView` itself silently yields nil — the injection sits *between* `PagingLibraryView` and its content, so the property wrapper resolves against the parent environment. That bug shipped in the first build of this rewrite and was caught by a screenshot: grid correct, pills gone.
+- **The drawer survives the non-grid states.** `stateView` (extracted from `body`) replaces the grid on loading / empty / error, and the drawer goes back to being pinned above it via `isShowingElements`. Otherwise a filter returning zero items takes the pills off screen with it and there is no way to undo the filter.
+- `safeAreaBar` + `IsSafeAreaBarApplied` are gone from the tvOS path; `LibraryHeader` no longer needs `ignoresSafeArea(edges: .horizontal)` because `LetterPickerBarModifier` already applies it to the whole library body. The preference and the tvOS branch of `LibraryElement.layout` now only matter to iOS / the unused collection path.
+
+## Follow-up in the same session — the navigation title floated too
+
+Same complaint one layer up: on every library that carries a title (Média→library, a home row's title button, "Films récents" and friends) tvOS kept the **navigation bar title** pinned over the posters scrolling under it. The main-bar tabs were unaffected only because `TabItem` already hides their navigation bar.
+
+Fix: `.toolbar(.hidden, for: .navigationBar)` on tvOS for every `PagingLibraryView`, and the title redrawn as `inlineTitleView` — first row of the same scrolling stack, above the drawer, `largeTitle`/bold at `edgePadding`.
+
+**`router.isRootOfPath` is not the "am I pushed" signal.** The obvious gate — draw the title only when not at the root — renders nothing: a diagnostic build printing `root=\(router.isRootOfPath)` on a *pushed* library showed **`root=true`**, because a pushed route gets its own coordinator whose `path` is empty. (Which also means `ItemLibraryBody`'s `if !router.isRootOfPath { FocusedPosterCinematicBackgroundView() }` never fires on pushed libraries — harmless, since `MainTabView` draws that background unconditionally on tvOS, but it is not doing what it reads like.) The title is gated on an explicit `showsInlineTitle` init parameter instead, which the two main-bar tab roots (`TabItem.library`, `TabItem.media`) pass as `false`.
+
+## Verification status
+
+- **BUILD SUCCEEDED** on the tvOS scheme; installed on sim `68CB155B` (md5 of installed binary == built), launched clean.
+- **Layout verified by the agent** via temporary launch-argument hooks in `MainTabView` (`-openLibraryTab` to select the Films tab, `-pushLibrary` to push a titled library; both reverted before the final build): pills above the first row, 7 columns, spacing and edges identical to the collection layout, and the title rendering above the pills with no navigation bar.
+- **User-confirmed working** after the rewrite: pills scroll away, Up returns to them.
+- **Not verified by the agent:** focus and scrolling. Scripted input to the Simulator is still blocked (`osascript` → System Events 1002, no `idb`, `simctl` has no key injection). Needs a user pass: scroll down (pills should scroll away), come back up to row 1, press Up (should land on the pills, not the menu bar).
+- iOS could not be compiled on this machine at all — only the tvOS 26.2 runtime is installed. The iOS path is unchanged code.
+
 ## Still open
 
+- [ ] **User verification of the rewrite** — focus Up into the pills, pills scrolling away, paging past the first 50 items, back-to-top on repeated tab selection, and the list display style.
+- [ ] Nothing committed for this session yet — user asked to hold until the result is green-lit.
 - [ ] Verified on sim 2026-08-02 by user: pills aligned ✓, home rows correct ✓ (hero À suivre after the 9th commit). **Filter keychain retention still unverified** — needs two user clicks; protocol: set Non lu on Films → agent runs `simctl uninstall` + reinstall + relaunch → user re-opens Films (uninstall wipes UserDefaults, so survival proves the keychain path).
 - [ ] Show-page layout/focus/play-button color on v4: 1.5-stock by construction, user spot-check recommended.
 - [ ] Deploy to the Apple TV via `Scripts/deploy-appletv.sh` / "Swiftfin.local update" Shortcut.
