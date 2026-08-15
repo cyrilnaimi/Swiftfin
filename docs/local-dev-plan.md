@@ -1,6 +1,64 @@
 # Local Dev Plan — `local/appletv-dev`
 
-> **2026-08-02 — CURRENT WORKING BRANCH IS `local/appletv-dev-v4` (tag `1.5` + 7 commits).** v3 was wiped after the user rejected it on the TV — its regressions were upstream-main UI redesigns, not our code. See "Session 2026-08-02" at the very end of this file. `local/appletv-dev-v2` (deployed) and `local/appletv-dev` (P9 legacy) remain untouched fallbacks.
+---
+
+# ⛑ RESTORE POINTS — read this first if something is broken
+
+**Last updated 2026-08-15.** Working branch: **`local/appletv-dev-v4`**, base = tag `1.5`.
+Every restore point below is a real annotated tag; none of them has ever been force-moved.
+
+### What is where
+
+| Restore point | Commit | State | Where it runs |
+|---|---|---|---|
+| `local-v4-1.6-cherrypicks-2026-08-15` | `8b1bccc2` | v4 + hero-logo fix + **15 cherry-picks from upstream 1.6** | **← ON THE APPLE TV** (Release, profile expires **2026-08-22 18:06**) |
+| `local-v4-hero-logo-fix-2026-08-15` | `fa89102f` | v4 + hero-logo fix only. Last state pushed to `origin` | briefly on the TV earlier the same day |
+| `local-v4-pre-scrolling-grid-2026-08-08` | `82ff8161` | v4 **before** the drawer/title scrolling rewrite | — |
+| `local-v2-2026-08-01` (branch `local/appletv-dev-v2`) | `c3596382` | the long-deployed v2 build | was on the TV until 2026-08-15 |
+| `local/appletv-dev` | `3ce19f76` | P9 legacy, untouched since 2026-07-12 | — |
+| `local-v3-archive-2026-08-02` | `0400265a` | wiped v3 (rebuilt on `upstream/main` — **rejected**, do not resurrect) | — |
+
+### Rollback recipes
+
+**Roll the branch back** (loses nothing — the tags keep every state reachable):
+
+    git reset --hard local-v4-hero-logo-fix-2026-08-15
+
+**Put an older build back on the Apple TV** — the deploy script builds from the working tree, so
+check the tag out first:
+
+    git checkout local-v4-hero-logo-fix-2026-08-15   # detached HEAD
+    ./Scripts/deploy-appletv.sh
+    git checkout local/appletv-dev-v4                # back to work
+
+**Drop a single bad cherry-pick** instead of rolling everything back — each one is an isolated
+commit carrying its upstream hash in the message:
+
+    git revert <commit>          # e.g. git revert 942c79ee   (the HEVC device profile)
+
+### Sync state — IMPORTANT
+
+`origin/local/appletv-dev-v4` is at **`fa89102f`**. The 16 commits after it and the tag
+`local-v4-1.6-cherrypicks-2026-08-15` are **local-only** — they exist on this machine and on the
+Apple TV, nowhere else. Push before relying on them surviving a disk loss:
+
+    git push origin local/appletv-dev-v4 && git push origin local-v4-1.6-cherrypicks-2026-08-15
+
+### Standing traps when verifying a rollback
+
+- Bundle id is `org.jellyfin.swiftfin.local.cnaimi` (from the gitignored
+  `XcodeConfig/DevelopmentTeam.xcconfig`). `simctl install/launch org.jellyfin.swiftfin.local`
+  silently runs a **stale** app while reporting success — always resolve the id from the built
+  `Info.plist` and md5-compare the installed binary against the built one before trusting a test.
+- The Apple TV always gets a **Release** build (`deploy-appletvos`), so
+  `Swiftfin tvOSRelease.entitlements` must stay wired or keychain filter persistence fails *only*
+  on the device.
+- Free-Apple-ID profiles last **7 days**; re-run the deploy script (or the "Swiftfin.local update"
+  Shortcut) weekly or the app dies on launch.
+
+---
+
+> _(2026-08-02 note, superseded by the table above)_ v3 was wiped after the user rejected it on the TV — its regressions were upstream-main UI redesigns, not our code. See "Session 2026-08-02".
 
 > _(2026-07-12 note, historical)_ v2 upstream-rebuild on branch `local/appletv-dev-v2`: M0–M6 done, M7 verified 2026-07-31, deployed.
 
@@ -877,12 +935,12 @@ Fix: `.toolbar(.hidden, for: .navigationBar)` on tvOS for every `PagingLibraryVi
 
 ## Still open
 
+_(Status as of the end of this session; superseded by the 2026-08-15 list at the bottom of the file.)_
+
+- [x] Committed as `d1286344` and deployed to the Apple TV on 2026-08-15.
 - [ ] **User verification of the rewrite** — focus Up into the pills, pills scrolling away, paging past the first 50 items, back-to-top on repeated tab selection, and the list display style.
-- [ ] Nothing committed for this session yet — user asked to hold until the result is green-lit.
 - [ ] Verified on sim 2026-08-02 by user: pills aligned ✓, home rows correct ✓ (hero À suivre after the 9th commit). **Filter keychain retention still unverified** — needs two user clicks; protocol: set Non lu on Films → agent runs `simctl uninstall` + reinstall + relaunch → user re-opens Films (uninstall wipes UserDefaults, so survival proves the keychain path).
 - [ ] Show-page layout/focus/play-button color on v4: 1.5-stock by construction, user spot-check recommended.
-- [ ] Deploy to the Apple TV via `Scripts/deploy-appletv.sh` / "Swiftfin.local update" Shortcut.
-- [ ] Nothing pushed to `origin` — v4 and the archive tag are local-only.
 
 ---
 
@@ -1049,3 +1107,42 @@ and the iOS-only fixes.
 The codec and subtitle picks (#2109, VC1, DV P7 ×2, interlaced, #2121, #2161, #2162) are all
 playback-path changes. They compile and the app runs, but they need real playback on the Apple TV
 against the M1Center server to be confirmed.
+
+## Deployment record + open items (2026-08-15, end of session)
+
+**Two deploys to the Apple TV today**, both Release, both via `Scripts/deploy-appletv.sh`:
+
+1. `fa89102f` (tag `local-v4-hero-logo-fix-2026-08-15`) — profile to 2026-08-22 17:40.
+2. `8b1bccc2` (tag `local-v4-1.6-cherrypicks-2026-08-15`) — **current**, profile to 2026-08-22 18:06.
+
+The second deploy is what is on the TV now. It is also the **first time the 2026-08-08 drawer/title
+scrolling rewrite (`d1286344`) has ever reached the device** — that commit had only ever been
+sim-tested. Anything odd about the library screens is more likely that commit than the 1.6 batch.
+
+### Open — verification owed by the user
+
+- [ ] **Playback on the TV** — the whole point of the codec batch and the only thing the simulator
+      cannot prove. HEVC file (#2109 now requires `hvc1`/`dvh1` codec tags + ≤60fps, so
+      direct-play/transcode decisions may flip either way), Dolby Vision P7 if available, an
+      interlaced source, a VC1 source.
+- [ ] **Subtitles** — a title with non-Latin (CJK) subtitles now that Noto CJK is bundled, plus the
+      new **Réglages → Lecteur vidéo → Force subtitle burn-in** toggle.
+- [ ] **Library screens on the device** — pills scroll away, Up from row 1 returns to the pills,
+      paging past the first 50, back-to-top on repeated tab selection, list vs grid display style
+      (#2106 rewired the binding underneath the layout picker).
+- [ ] **Filter keychain retention** — still never verified, on sim or device. Protocol unchanged:
+      set *Non lu* on Films → uninstall + reinstall + relaunch → re-open Films.
+- [ ] Show page / settings comboboxes still 1.5-stock — spot-check.
+
+### Open — work not done, with reasons
+
+- [ ] **Push.** `origin/local/appletv-dev-v4` is at `fa89102f`; 16 commits and the tag
+      `local-v4-1.6-cherrypicks-2026-08-15` are local-only. Not pushed because it was not asked for.
+- [ ] **`c81e33e3` #2160 play-button focus / `FocusCoordinator`.** Portable, mapped out, not done —
+      it changes initial focus on the show page and scripted sim input is still blocked, so it
+      cannot be verified here. Now that the batch is on hardware this is the natural next step,
+      as its own commit so it can be reverted alone.
+- [ ] **Drawer doesn't visibly update on filter change** — carried since 2026-08-01 §D, still needs
+      a live repro.
+- [ ] **`local/appletv-dev-v2` is no longer the deployed build.** It stays as a fallback branch but
+      the TV has not run it since 2026-08-15.
