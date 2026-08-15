@@ -883,3 +883,93 @@ Fix: `.toolbar(.hidden, for: .navigationBar)` on tvOS for every `PagingLibraryVi
 - [ ] Show-page layout/focus/play-button color on v4: 1.5-stock by construction, user spot-check recommended.
 - [ ] Deploy to the Apple TV via `Scripts/deploy-appletv.sh` / "Swiftfin.local update" Shortcut.
 - [ ] Nothing pushed to `origin` — v4 and the archive tag are local-only.
+
+---
+
+# Session 2026-08-15 — upstream `1.6` review + the home hero "empty white line"
+
+## The bug: the hero logo was stretched across the whole screen
+
+**Reported:** a large clear/empty line just above the À suivre strip on the home page, gone once you move down.
+
+**Root cause — upstream's, not ours.** `CinematicSelectionContentGroup.SelectionView.topContent`
+builds the hero logo as `ImageView(...)` with **no width constraint**. `ImageView`'s default
+`image` closure is `Image(uiImage:).resizable()`, which has no ideal size, so the trailing
+`.aspectRatio(contentMode: .fit)` has nothing to preserve and the logo is stretched to the full
+container width inside a 100pt-tall frame. A wordmark logo at ~18:1 smears into a flat
+translucent band — which is exactly what the user saw. The requested image was already only
+`parentFrame.width * 0.4` (768pt) wide, so it was being blown up ~2.4× as well.
+
+**Fix — backport of upstream `17323162` / PR #2192 "Cap tvOS Home Logo Width" (1.6).** Request a
+fixed `maxWidth: 450` and add `.frame(maxWidth: 450, alignment: .leading)` after the height frame.
+(Upstream omits the `alignment:`, which centres the logo in the 450pt box; `.leading` keeps our
+left edge flush with `edgePadding`. `parentFrame` is now unused in `SelectionView`, same as
+upstream.) `parentLogoImageTag` from #2104 deliberately still left out.
+
+**Verified on sim `68CB155B`:** BUILD SUCCEEDED, installed, launched. Before = full-width
+translucent band above the strip; after = the "Golfeur prodige" logo renders at its proper size on
+the left. Screenshots `/tmp/sf-home2.png` (before) and `/tmp/sf-fixed.png` (after).
+
+Present at 1.5 too, so the App Store 1.5 build has it as well. Not committed yet.
+
+## `1.6` review — it is very much a tvOS release, and it re-introduces the v3 regressions
+
+129 commits, 327 files, 1.5 → 1.6 (2026-07-14 → 2026-08-11).
+
+**The blocker is not the merge, it is the design switch.** Two one-line changes flip the whole
+tvOS look:
+
+| Change | 1.5 | 1.6 |
+|---|---|---|
+| `UIDesignRequiresCompatibility` in `Swiftfin tvOS/Resources/Info.plist` | `true` — legacy look | **removed** — full tvOS 26 Liquid Glass |
+| `Defaults[.isLiquidGlassEnabled]` (`experimentalLiquidGlass`) | exists, `DEBUG`-gated, default **false** | **deleted** — glass is unconditional |
+| `MainTabView` | top tab bar | `+ .tabViewStyle(.sidebarAdaptable)` (`bbda0c63`, PR #2107) — *the sidebar the user rejected* |
+| tvOS `ItemView` | own folder, 5 files | **folder deleted**, consolidated into `Shared/Views/ItemView/` (PR #2112) |
+| `PlayButton` | `.foregroundStyle(accentColor.overlayColor, accentColor)` + `.buttonStyle(.primary)` | `.glassEffect(.regular.selection(tint: accentColor, …), in: .capsule)` — *the "play button lost its accent colour" complaint* |
+| `ListRowMenu` (settings comboboxes) | glass branch + legacy branch | legacy branch **deleted** — *the "comboboxes render differently" complaint* |
+
+So a wholesale rebase onto 1.6 reproduces, by construction, every reason v3 was wiped on
+2026-08-02. **Recommendation: stay on the 1.5 base and cherry-pick.**
+
+Good news for our own work: `ContentGroupView` and `ContentGroupVStack` are almost unchanged
+1.5 → 1.6 (`focusedGroupID` binding → `.coordinatedFocus`), so the home rework is not threatened
+by upstream drift. And tvOS still has **no filter UI at all** upstream at 1.6 — the drawer is
+still iOS-only (`Swiftfin/Components/NavigationBarFilterDrawer/`), so the pill drawer stays a
+purely local feature.
+
+## Cherry-pick shortlist (onto the 1.5 base)
+
+| Tier | Commit / PR | Size | Note |
+|---|---|---|---|
+| **1 — done** | `17323162` #2192 Cap tvOS Home Logo Width | 1 file | the bug above ✅ |
+| 1 | `1a5ef884` #2170 Don't use `runtime` if it doesn't exist | 1 line | |
+| 1 | `3c2287b8` #2197 Accent colour for landscape poster progress | 1 line | |
+| 1 | `c7c387d3` #2118 Fix poster preview progress | 1 line | |
+| 1 | `631ca53e` #2120 Fix menu symbol styling | 3 lines | |
+| 2 | `36a3eb56` #2109 MP4 HEVC `hev1`/`dvhe` device profile | 14 lines | playback correctness |
+| 2 | `18b8ae4a` + `0ab58a13` DV P7 DirectPlay | 1 line each | |
+| 2 | `4a649ece` VC1 transcoding profile | 26 lines | |
+| 2 | `0f1ab257` drop AVC/H264 interlaced restriction | 6 lines | |
+| 2 | `85a4d52e` #2161 Force Subtitle Burn-In, `7afca11e` #2121 Non-Romantic Subtitle Fix, `b94574f4` Fix Text Subtitle Conversion | 31 / 171 / — | subtitle correctness |
+| 3 | `c81e33e3` #2160 Focus Play Button on Episode Details (tvOS) | 11 files | **introduces `Shared/Objects/FocusCoordinator.swift` (130 lines, self-contained) + `.coordinatedFocus(id)`** — this is the real fix for the series-`ItemView` initial-focus bug documented on 2026-08-01 §C (six disproven hypotheses). Needs hand-porting: at 1.5 the headers live in `Swiftfin tvOS/Views/ItemView/Components/`. |
+| 3 | `cf71ab0d` #2176 tvOS Poster Preview | 1 file | |
+| 3 | `02d65aaa` #2106 Fix library style sourcing | 5 files | |
+| **skip** | #2103 / #2147 / #2097 glass, #2107 sidebar, #2112 ItemView consolidation, #2077 Season ItemView | — | these *are* the regressions |
+| **skip** | `ffd850a6` #2172 `jellyfin-sdk-swift` 2.1.0 → **3.0.0** (server 12.0) | huge | whole API surface; only needed for the 1.6 features we are not taking |
+| **skip** | Live TV (#2114/#2140/#2139/#2152), Server Backups (#2182), Recently Played (#2167), Filter by Language & `officialRatings` (#2190) | — | not needed; #2190 would collide with our filter branch |
+| **skip** | iOS-only: #2089 letter picker, #2148/#2171 orientation, #2195 long-press unlock | — | |
+
+## If a 1.6 rebase is ever wanted anyway
+
+Only **12 files** overlap between `1.5..HEAD` and `1.5..1.6`:
+
+- `AlternateLayoutView` / `LibraryElement` / `EdgeInsets` / `IsSafeAreaBarApplied` — our `fb5cd7e8`
+  #2096 backport becomes **redundant**; take upstream's and drop the commit.
+- `PagingLibraryView.swift` — the one real conflict (our 335-line tvOS `ScrollView` path vs
+  upstream's inset threading). Our tvOS branch replaces the collection path wholesale, so it is a
+  re-apply rather than a merge.
+- `ItemFilterType` (upstream adds language/`officialRatings`), `ItemLibrary`, `StoredValues+User`,
+  `DefaultContentGroupProvider` (upstream adds Recently Played + Recommended Programs),
+  `MainTabView`, tvOS `Info.plist`, `project.pbxproj` — all small.
+- `CinematicSelectionContentGroup.swift` moves `Objects/ContentGroup/` → `Objects/`; upstream's
+  delta on it is only #2192 + `parentLogoImageTag`.
