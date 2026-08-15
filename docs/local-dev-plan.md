@@ -973,3 +973,79 @@ Only **12 files** overlap between `1.5..HEAD` and `1.5..1.6`:
   `MainTabView`, tvOS `Info.plist`, `project.pbxproj` — all small.
 - `CinematicSelectionContentGroup.swift` moves `Objects/ContentGroup/` → `Objects/`; upstream's
   delta on it is only #2192 + `parentLogoImageTag`.
+
+## 1.6 integration — 15 commits cherry-picked onto the 1.5 base (2026-08-15)
+
+Applied in upstream chronological order with `git cherry-pick -x`, so every commit records its
+origin hash. **No rebase — the 1.5 base is untouched**, and the design invariants were re-checked
+after the batch (see below).
+
+| # | Commit (ours) | Upstream | What |
+|---|---|---|---|
+| 1 | `5fb36514` | `02d65aaa` #2106 | Fix library style sourcing — `BindingBox` → `@StateOrBinding`; **deletes `Shared/Objects/BindingBox.swift`**, verified no remaining references |
+| 2 | `942c79ee` | `36a3eb56` #2109 | MP4 HEVC `hev1`/`dvhe` device profile — adds `videoCodecTag` in `hvc1`/`dvh1` + ≤60fps conditions |
+| 3 | `5d0312a7` | `c7c387d3` #2118 | Fix poster preview progress |
+| 4 | `9cca9263` | `631ca53e` #2120 | Menu symbol styling — **partial**, see conflicts |
+| 5 | `19dfff97` | `4a649ece` | Separate VC1 transcoding profile for the Swiftfin player |
+| 6 | `3af8fdc4` | `8e9ae684` | Linting (needed by the codec chain) |
+| 7 | `f345aa20` | `0f1ab257` | Drop the shared AVC/H264 interlaced restriction |
+| 8 | `04b33c69` | `0ab58a13` | Allow DV P7 DirectPlay in the Swiftfin player |
+| 9 | `999a683a` | `18b8ae4a` | Allow DV P7 DirectPlay on Native |
+| 10 | `89966b69` | `7afca11e` #2121 | Non-Romantic Subtitle Fix — bundles `NotoSansCJK-Regular.ttc` (19 MB) + `UIAppFonts` |
+| 11 | `456252bf` | `85a4d52e` #2161 | Force Subtitle Burn-In — **partial**, see conflicts |
+| 12 | `a721c152` | `b94a574f` #2162 | Fix Text Subtitle Conversion |
+| 13 | `969cde8d` | `1a5ef884` #2170 | Don't use `runtime` if it doesn't exist |
+| 14 | `f333b127` | `cf71ab0d` #2176 | tvOS Poster Preview |
+| 15 | `13c6faa6` | `3c2287b8` #2197 | Accent colour for landscape poster progress |
+
+### The three conflicts and how they were resolved
+
+1. **#2120 → `ServerMenu.swift`.** At 1.5 the file lives in `BottomBar/Components/`, not
+   `Toolbar/Components/`, and lacks the `.foregroundStyle` + `.glassEffect(in: .capsule)` lines —
+   those come from `a032bde2` (#2097), a glass PR we are deliberately **not** taking. Took only the
+   actual fix, `.symbolRenderingMode(.monochrome)`. The commit's second file followed the rename on
+   its own and applied clean.
+2. **#2121 → `Swiftfin tvOS/Resources/Info.plist`.** Purely positional: git aligned upstream's new
+   `UIAppFonts` array against our `UIDesignRequiresCompatibility`. #2121 does **not** remove that
+   key (verified against the upstream diff) — kept both.
+3. **#2161 → `Package.resolved` + `en.lproj/Localizable.strings`.** The `Package.resolved` hunk is
+   an incidental SPM refresh (`swift-system` 1.7.4 → 1.7.5) unrelated to the feature — **kept ours**
+   rather than importing a dependency bump. For the strings file (UTF-16 LE), inserted only the two
+   keys the commit needs, `forceSubtitleBurnIn` / `forceSubtitleBurnInMessage`, in alphabetical
+   position, rather than taking upstream's whole 1.6-era file.
+
+### Post-batch verification
+
+- `xcodebuild` **BUILD SUCCEEDED** (tvOS Debug), installed and launched on sim `68CB155B`, no crash.
+- Home page screenshot identical to the post-`#2192` build: hero logo correct, no band, top tab bar
+  unchanged.
+- Design invariants re-checked: `UIDesignRequiresCompatibility` still `true` in the **built**
+  `Info.plist`, `isLiquidGlassEnabled` still present and default-false, no `sidebarAdaptable` in
+  `MainTabView`, tvOS `ItemView/` folder intact.
+- `UIAppFonts` present in the built bundle and `NotoSansCJK-Regular.ttc` (19 MB) actually copied —
+  the project uses file-system-synchronized groups, so no `pbxproj` edit was needed.
+- Every L10n key added by the batch resolves in `en.lproj` (checked programmatically).
+
+### Deliberately NOT taken
+
+`c81e33e3` #2160 "Focus Play Button on Episode Details on tvOS" — the one remaining Tier-3 item, and
+the real fix for the series-`ItemView` initial-focus bug from 2026-08-01 §C. It is **portable**:
+`Shared/Objects/FocusCoordinator.swift` is self-contained, and the rest is mechanical
+(`ContentGroupVStack` `focusedGroupID` → `.coordinatedFocus`, `ContentGroupView` gains a
+`@StateObject FocusCoordinator`, the tvOS header drops its `@FocusState` + `defaultFocus` block, the
+play button takes `.coordinatedFocus(ItemView.Component.play)`).
+
+**Not done because it cannot be verified here.** Scripted input to the Simulator is still blocked
+(no `idb`, `simctl` has no key injection), so a focus change to the show page — the exact screen
+that got v3 rejected — would ship untested. Needs a hardware pass with the remote. Left as an
+opt-in follow-up.
+
+Also still skipped, unchanged from the review above: all glass/sidebar/`ItemView`-consolidation PRs,
+the `jellyfin-sdk-swift` 3.0.0 bump, Live TV, Server Backups, Recently Played, Filter by Language,
+and the iOS-only fixes.
+
+### Not verifiable on the simulator
+
+The codec and subtitle picks (#2109, VC1, DV P7 ×2, interlaced, #2121, #2161, #2162) are all
+playback-path changes. They compile and the app runs, but they need real playback on the Apple TV
+against the M1Center server to be confirmed.
