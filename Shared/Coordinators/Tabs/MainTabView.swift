@@ -61,7 +61,8 @@ struct MainTabView: View {
         }
     }
 
-    var body: some View {
+    @ViewBuilder
+    private func legacyTabContent() -> some View {
         TabView(selection: $tabCoordinator.selectedTabID) {
             ForEach(tabCoordinator.tabs, id: \.item.id) { tab in
                 NavigationInjectionView(
@@ -88,6 +89,61 @@ struct MainTabView: View {
                     .eraseToAnyView()
                 }
                 .tag(tab.item.id)
+            }
+        }
+    }
+
+    /// The `Tab` builder API, which is what `.sidebarAdaptable` needs. Backported
+    /// from upstream 1.6 (`bbda0c63`, PR #2107) so the tvOS shell is a leading
+    /// sidebar instead of a top tab bar.
+    ///
+    /// `sidebarAdaptable` is a tvOS 18 feature and does *not* require Liquid Glass:
+    /// `UIDesignRequiresCompatibility` stays `true` in the tvOS `Info.plist`, so the
+    /// sidebar renders in the legacy material and none of the 1.6 glass regressions
+    /// (comboboxes, play button, ItemView) come along with it.
+    @available(iOS 18.0, tvOS 18.0, *)
+    @ViewBuilder
+    private func tabContent() -> some View {
+        TabView(selection: $tabCoordinator.selectedTabID) {
+            ForEach(tabCoordinator.tabs, id: \.item.id) { tab in
+                Tab(
+                    value: tab.item.id,
+                    role: tab.item.id == TabItem.search.id ? .search : nil
+                ) {
+                    NavigationInjectionView(
+                        coordinator: tab.coordinator
+                    ) {
+                        tab.item.content
+                        #if os(iOS)
+                            .if(tabCoordinator.tabs.first?.item.id == tab.item.id) { view in
+                                view.topBarTrailing {
+                                    FirstTabSettingsBarButton()
+                                }
+                            }
+                        #endif
+                    }
+                    .environmentObject(tabCoordinator)
+                    .environment(\.tabItemSelected, tab.publisher)
+                } label: {
+                    Label(
+                        tab.item.displayTitle,
+                        systemImage: tab.item.systemImage
+                    )
+                    .symbolRenderingMode(.monochrome)
+                }
+            }
+        }
+        #if os(tvOS)
+        .tabViewStyle(.sidebarAdaptable)
+        #endif
+    }
+
+    var body: some View {
+        Group {
+            if #available(iOS 18, tvOS 18.0, *) {
+                tabContent()
+            } else {
+                legacyTabContent()
             }
         }
         .backport
