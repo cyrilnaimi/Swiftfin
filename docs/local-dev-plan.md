@@ -1146,3 +1146,243 @@ sim-tested. Anything odd about the library screens is more likely that commit th
       a live repro.
 - [ ] **`local/appletv-dev-v2` is no longer the deployed build.** It stays as a fallback branch but
       the TV has not run it since 2026-08-15.
+
+---
+
+# Session 2026-08-17 — branch `local/sidebar-filters`: hardware glass gate, sidebar, stacked filter menu
+
+New feature branch off `62d81d9d` (v4 tip). **`local/appletv-dev-v4` and its tag
+`local-v4-1.6-cherrypicks-2026-08-15` were pushed to `origin` first**, so the 17 previously
+local-only commits now exist off this machine. Nothing on the new branch is pushed.
+
+| Commit | What | Files |
+|---|---|---|
+| `57fa8f96` | `fix:` gate Liquid Glass on hardware that can render it | 4 |
+| `46f54208` | `feat(tvOS):` browse from a leading sidebar instead of a top tab bar | 1 |
+| `3169c284` | `feat(tvOS):` stacked filter menu, replacing the six-pill drawer | 4 (1 new) |
+
+Both configurations build: `xcodebuild` **Debug and Release BUILD SUCCEEDED**, installed and launched
+on sim `68CB155B` with the installed binary md5-matched against the built one every time.
+
+## The headline: the Apple TV in the living room cannot render Liquid Glass
+
+`xcrun devicectl list devices` reports Sonyapptv as **`AppleTV6,2`** — Apple TV 4K **1st gen**,
+tvOS 26.6. Upstream PR #2224 (open, 2026-08-16) exists precisely because Apple ships tvOS 26 to
+`AppleTV5,3` (Apple TV HD) and `AppleTV6,2` **without** Liquid Glass
+(<https://support.apple.com/en-us/106336>, tvOS 26 footnote 2).
+
+**This retires the "gray play button" mystery from 2026-08-01 §B.** That session narrowed the symptom
+to `PlayButton` being the only surface pushing `accentColor` through `glassEffect(tint:)` while every
+plain `.fill(accentColor)` stayed purple, and left two device checks open (accessibility contrast /
+reduce transparency). Neither is needed: on that hardware the glass tint has nowhere to land. It also
+explains, at the root, why 1.6/v3 looked wrong on the device — every glass surface in 1.6 degrades
+there. Not our bug, and worth telling upstream, since #2224's author does not connect it to the
+play-button reports.
+
+**What `57fa8f96` actually does — and does not do.** Contrary to the first read of #2224, our 1.5 base
+has *no* live glass: every call site goes through `.backport.glassEffect(...)` →
+`BackportGlassEffectModifier`, gated on `isLiquidGlassEnabled`, which is default **false**. So glass
+is already off on both the sim and the TV. Porting #2224's check as a *replacement* for the flag would
+have switched glass **on** for capable devices (including the simulator) — the design that got v3
+rejected — and made the sim stop representing the TV.
+
+So the helper is ported byte-identical from #2224 (`UIDevice.supportsLiquidGlass`, `uname` model
+match) and used as an **AND gate** on the flag, at three sites:
+`BackportGlassEffectModifier.usesLiquidGlass`, `ListRowMenu.usesLiquidGlass`, and the DEBUG Solarium
+`IgnoreSolariumOptOut` swizzle in `SwiftfinApp+configure`. Behaviour today is unchanged everywhere;
+what it buys is that the flag can never again produce broken glass on hardware that cannot draw it.
+iOS call sites (`NavigationBarMenuButton`) were deliberately left alone — iOS cannot be compiled on
+this machine.
+
+`#2224` itself is **not cherry-pickable**: it touches `BackportGlassButtonStyles.swift` (does not
+exist at 1.5) and `Toolbar/` paths that are `NavigationBar/` on our base, and it hand-restores a
+legacy `ListRowMenu` body that we still have.
+
+**Caveat for verification:** `uname` returns the *host architecture* inside a simulator, so
+`supportsLiquidGlass` is `true` there and the exclusion list only ever fires on real hardware. The
+fallback path is not observable on the sim.
+
+## The sidebar (`46f54208`) — and why it does not drag the 1.6 design in
+
+`.tabViewStyle(.sidebarAdaptable)` is a **tvOS 18** feature and is independent of Liquid Glass. It
+needs the `Tab`-builder `TabView`, which landed upstream between 1.5 and 1.6, so the port is 1.6's
+whole `MainTabView` (both `legacyTabContent()` and `tabContent()`, structured exactly as upstream) with
+our two `persistenceID:` arguments kept and upstream's `onReceive(routePublisher)` dropped — we have no
+such publisher. One file.
+
+`UIDesignRequiresCompatibility` stays **`true`**, and the sidebar renders fine in the legacy material —
+verified on the sim. Since the TV cannot draw glass anyway, removing that key would buy nothing
+visually and would re-open every v3 regression (comboboxes, play button, consolidated ItemView).
+
+Two things this buys beyond the look:
+
+- the top tab bar is gone, returning the vertical space it reserved;
+- **upward focus exits from the poster grid no longer hand off to a prioritized UIKit tab bar** — the
+  exact constraint that forced the filter drawer to become scrolling content on 2026-08-08.
+
+## What the tvOS sidebar can and cannot host — settled, with a spike
+
+The user's ask was "put the filter *in* the sidebar". It cannot be done. From the tvOS 26.2
+`SwiftUI.swiftinterface`, plus one build:
+
+| API | tvOS 26.2 |
+|---|---|
+| `tabViewStyle(.sidebarAdaptable)` | available, tvOS 18+ |
+| `TabSection` (header/footer) | available, tvOS 18+ |
+| `tabViewSidebarHeader` / `Footer` / `BottomBar` | **`@available(tvOS, unavailable)`** |
+| `contentToolbar(for: .tabViewSidebar)` | **unavailable** |
+| `TabContent.hidden()` / `defaultVisibility(_:for:)` | **unavailable** |
+| `TabContent.sectionActions { }` | compiles on tvOS, **renders nothing** — spiked and reverted |
+
+The spike added a `Button` in `.sectionActions` on the tab `ForEach`; the expanded sidebar showed only
+the six tabs. **Conclusion: the tvOS system sidebar accepts `Tab`s and nothing else.** A `Filtres`
+`Tab` would swap the content area and take the library off screen, which defeats the purpose.
+
+## The stacked filter menu (`3169c284`)
+
+The six-pill horizontal drawer is replaced by one trigger plus `LibraryFilterMenu`
+(`Swiftfin tvOS/Components/LibraryFilterMenu.swift`, new), a panel down the leading edge with three
+levels:
+
+1. **root** — `ACTIF` list, one row per active filter showing its selection summary, each with a
+   *separate focusable* `✕` to its right; then `Ajouter ›`, `Trier · <current> ›`, `Réinitialiser`,
+   `Fermer`.
+2. **add** — only the types **not** already active, so the list shrinks as filters are used.
+3. **values** — the same `SelectorView` the full-screen `FilterView` uses, so single vs multi select,
+   checkmarks and the `sortBy` order/field split behave exactly as on iOS.
+
+Mechanics worth keeping:
+
+- **State lives in `PagingLibraryView`** (`LibraryFilterMenuState`, tvOS-only `@StateObject`): the
+  trigger is inside the scrolling content while the panel is an `overlay` on the whole library body,
+  so the two sit at different levels and cannot reach each other directly.
+- **`disabled(isPresented)` on the library body** is what removes the grid from the focus engine while
+  the panel is up. The overlay is attached *after* that modifier, so the panel itself stays enabled.
+  Focus lands in the panel on its own — verified.
+- **An overlay, not a sheet**, so the grid stays visible and re-queries in view. This also answers the
+  "the drawer does not visibly update when a filter is chosen" complaint carried since 2026-08-01 §D:
+  active filters are now an explicit list, not a pill tint.
+- **`SelectorView` is a `List`** and draws its focused row wider than its neighbours; without
+  `clipShape` on the panel it bleeds past the panel edges. Clip + 14pt inset fixes it.
+- **The Menu press is not reliably ours.** The library is a *tab root*, so the tab/sidebar controller
+  takes Menu before SwiftUI's `onExitCommand` sees it — the same priority problem as the tab bar
+  stealing Up, in a different direction. Hence focusable `‹ <previous level>` rows on every sub-level
+  and a `Fermer` row on the root, rather than depending on Menu.
+- **No new L10n keys.** `filters` / `add` / `sort` / `order` / `reset` / `active` / `none` / `close`
+  all already exist and are translated in French.
+
+### Also fixed: `likedItems` = "Favoris" in French, again
+
+The traits list read `Non lu / Déjà lu / Favoris / Favoris`. French maps both `favorites` and
+`likedItems` to "Favoris" while English distinguishes ("Favorites" / "Liked items"). This is the
+**P5.3 fix regressed** — it was lost when v4 was rebuilt on tag `1.5`. `likedItems` → "Aimés"
+(file is UTF-16 LE; edited via Python `codecs`). Weblate owns translations upstream, so this stays
+local and is worth reporting there.
+
+## How the UI was verified without being able to press buttons
+
+Scripted input to the Simulator is *still* blocked — `osascript … System Events` fails with **1002**
+(terminal lacks Accessibility). So verification used **temporary launch-argument hooks**, the same
+technique as 2026-08-08, all removed before the commit and grep-confirmed gone:
+
+`-openMoviesTab` (select the Films tab), `-openFilterMenu` / `-openFilterMenuAdd` /
+`-openFilterMenuValues` (present the panel at a given level), `-presetFilters` (force
+`traits = [.isUnplayed]`, `genres = ["Action"]`).
+
+Screenshots captured: trigger closed, trigger active with inline summary, root empty, root with two
+active filters + `✕` rows + count badge, add level with all six types, values level for traits.
+
+**Granting Accessibility to the terminal is the single highest-value unblock for this branch** — every
+remaining question is a focus question.
+
+### `-presetFilters` left test data behind
+
+The hook wrote `Action` + `Non lu` through the app's own **filter persistence**, so those filters
+survived the hook's removal and are restored on every launch of that library. Not a code bug. Clear
+via `Réinitialiser` or the per-row `✕`. Worth remembering before using that hook again.
+
+### Toolchain trap — CLI builds need `-skipMacroValidation`
+
+`xcodebuild` from the command line fails at `ComputeTargetDependencyGraph` with *"Macro
+'CasePathsMacros' … was changed since a previous approval and must be enabled before it can be
+used"* (same for `StatefulMacrosMacros`). Xcode wants an interactive trust click. Add
+**`-skipMacroValidation`** to every CLI build on this project.
+
+## Collection pages are empty because the server says the collections are empty
+
+User report: opening a collection shows the title, overview, Genres and Studios but **no items**.
+
+**What the app does.** `BaseItemDto+LibraryElement.swift:35-43` routes only
+`.collectionFolder / .folder / .userView` to a library grid; everything else, `.boxSet` included, goes
+to `ItemView`. For a `.boxSet`, `ItemContentGroupProvider.swift:157-164` builds *one poster row per
+item kind* via `ItemTypeContentGroupProvider`, each querying
+`/Items?parentId=<collection>&includeItemTypes=<kind>`. Rows that come back empty are **dropped**, not
+shown empty (`ContentGroupViewModel.resolveGroups()` keeps only groups where
+`viewModel.elements.isNotEmpty`, `PosterGroup.swift:22-24`). Identical at 1.5, 1.6 and
+`upstream/main`.
+
+**What the server returns.** Diagnosed with a temporary in-app diagnostic (reverted) so the queries
+carried the real session token. First hypothesis — that `recursive=true` is wrong for a BoxSet, since
+`isRecursiveCollection` early-returns `true` when `collectionType` is nil
+(`BaseItemDto+LibraryParent.swift:61-69`) — was **disproven**: every shape returns zero.
+
+```
+bare recursive=true          total=0    app-shape movie recursive=true    total=0
+bare recursive=false         total=0    app-shape movie recursive=false   total=0
+no userID                    total=0    with fields + totalRecordCount    total=0
+full item: childCount=0  recursiveItemCount=0  isFolder=true  type=BoxSet
+```
+
+And every collection on the server, asked for its own counts in one request:
+
+| Collection | `childCount` | `recursiveItemCount` |
+|---|---|---|
+| Avengers - Saga | 0 | 0 |
+| James Bond 007 - Saga | 0 | 0 |
+| Spectacles | 0 | 0 |
+| Spider-Man : New Generation - Saga | 0 | 0 |
+| **Star Wars - Saga** (the one photographed) | 0 | 0 |
+
+`childCount` / `recursiveItemCount` are computed by Jellyfin itself, not by the query. **The server
+believes all five collections are empty and the app is displaying that faithfully.** Server 10.11.11,
+"M1Center". The user created these collections, so the links were lost at some point — the usual cause
+is a library removed and re-added, or media re-identified, orphaning the collection's `LinkedChildren`.
+Server-side remedies, in order: Dashboard → Scan all libraries, then a metadata refresh, then re-add
+the movies or delete and recreate the collection. Verify first in Jellyfin Web.
+
+**One genuine app-side gap, not fixed.** An empty collection renders *nothing* where the rows would
+be, so "empty" is indistinguishable from "broken" — exactly the confusion reported. Upstream just did
+this for empty *libraries* in #2226 (`ContentUnavailableView` + `.focusable()`); the collection page
+has no equivalent. Small local fix and a good upstream report.
+
+**On filters for collections:** only meaningful if `.boxSet` routes to a library grid instead of
+`ItemView`, which would hand it the filter UI for free. With zero children it would still be an empty
+grid, so the server data comes first.
+
+## Open — next steps on this branch
+
+- [ ] **Convert the trigger into a leading rail.** Today the trigger is a capsule button inside the
+      scrolling content, so `Left` from the grid does not reach it. Wanted (user's own description of
+      the flow): a narrow full-height rail flush at the library's leading edge → `Left` from the grid
+      lands on filters, `Left` again leaves the tab content and opens the system sidebar, closing lands
+      back in the grid. The rail should win the `Left` exit because it is a sibling *inside* the tab
+      content and the sidebar only gets the exit when nothing focusable is to the left — **untested,
+      and this is exactly the class of assumption that failed on 2026-08-08.**
+- [ ] **`✕` on an active filter row — reported as "could not remove".** Unclear whether `Right` fails
+      to move focus to it or the press does nothing. Needs input on the sim. Also: clearing the row
+      that currently holds focus destroys that row, so focus needs to be moved deliberately.
+- [ ] **Menu / `onExitCommand`** — mitigated with focusable back/close rows, root cause (tab-root
+      priority) not solved.
+- [ ] Empty-collection `ContentUnavailableView` (above).
+- [ ] Nothing on this branch is pushed; no tag cut yet.
+- [ ] Not deployed to the Apple TV. **The provisioning profile expires 2026-08-22 18:06** — the
+      currently installed `8b1bccc2` build dies after that without a re-sign.
+
+## Environment notes from this session
+
+- **M1Center was intermittently hanging**: `ping` 0.95 ms, 0% loss, while HTTP requests returned
+  `http=000` after ~8 s, then recovered. Several screenshots show `La requête a expiré` for that
+  reason, not because of any change here. Worth watching — it also makes UI verification flaky.
+- The panel's root, add and traits levels need **no** server: letter / sortBy / traits values come from
+  the static `ItemFilterCollection.all`. Only genres / tags / years require a live server. Useful when
+  the server is down.
