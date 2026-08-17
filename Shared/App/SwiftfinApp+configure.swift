@@ -19,7 +19,13 @@ extension SwiftfinApp {
     static func configure() {
 
         #if DEBUG
-        SwizzleDefaults.set(Defaults[.isLiquidGlassEnabled], for: "com.apple.SwiftUI.IgnoreSolariumOptOut")
+        // Forcing SwiftUI past the `UIDesignRequiresCompatibility` opt-out only makes
+        // sense on hardware that can render the new design language. Apple TV HD and
+        // Apple TV 4K (1st gen) run tvOS 26 without Liquid Glass — see upstream #2224.
+        SwizzleDefaults.set(
+            Defaults[.isLiquidGlassEnabled] && UIDevice.supportsLiquidGlass,
+            for: "com.apple.SwiftUI.IgnoreSolariumOptOut"
+        )
         #endif
 
         // Logging

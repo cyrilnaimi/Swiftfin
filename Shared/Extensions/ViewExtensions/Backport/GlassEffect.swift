@@ -95,16 +95,25 @@ struct BackportGlassEffectModifier<BackgroundShape: Shape>: ViewModifier {
             .contentShape(shape)
     }
 
+    /// Glass is opt-in through `isLiquidGlassEnabled` *and* gated on hardware that
+    /// can actually render it. Apple TV HD and Apple TV 4K (1st gen) run tvOS 26
+    /// without Liquid Glass — asking for it there returns flat gray chrome rather
+    /// than glass, which is what "the play button lost its accent colour" was.
+    /// See upstream PR #2224.
+    private var usesLiquidGlass: Bool {
+        isLiquidGlassEnabled && UIDevice.supportsLiquidGlass
+    }
+
     @ViewBuilder
     private func platformAppearanceBody(_ content: some View) -> some View {
         #if os(tvOS)
-        if #available(tvOS 26.0, *), isLiquidGlassEnabled {
+        if #available(tvOS 26.0, *), usesLiquidGlass {
             glassBody(content)
         } else {
             legacyBody(content)
         }
         #else
-        if #available(iOS 26.0, *), isLiquidGlassEnabled {
+        if #available(iOS 26.0, *), usesLiquidGlass {
             glassBody(content)
         } else {
             legacyBody(content)
