@@ -40,6 +40,13 @@ struct PagingLibraryView<Library: PagingLibrary>: View where Library.Element: Li
     private var gridProxy = CollectionVGridProxy()
     @StateObject
     private var viewModel: PagingLibraryViewModel<Library>
+    #if os(tvOS)
+    /// Owned here rather than by the drawer: the trigger scrolls with the content
+    /// while the panel is an overlay on the whole body, so the two live at
+    /// different levels and need shared state.
+    @StateObject
+    private var filterMenuState = LibraryFilterMenuState()
+    #endif
 
     @StoredValue
     private var parentLibraryStyle: LibraryStyle
@@ -321,6 +328,17 @@ struct PagingLibraryView<Library: PagingLibrary>: View where Library.Element: Li
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .environmentObject(filterMenuState)
+            // While the panel is up the grid must not be focusable, or Right out of
+            // the panel lands on a poster. `disabled` is what removes a subtree
+            // from the focus engine; the overlay is added after it, so the panel
+            // itself stays enabled.
+            .disabled(filterMenuState.isPresented)
+            .overlay(alignment: .topLeading) {
+                LibraryFilterMenu()
+                    .environmentObject(filterMenuState)
+            }
+            .animation(.snappy(duration: 0.25), value: filterMenuState.isPresented)
             #else
             ZStack {
                 stateView
