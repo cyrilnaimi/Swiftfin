@@ -139,12 +139,36 @@ binary before trusting anything (stale-app trap). Scripted input is blocked, so 
 checks need the user.
 
 Prerequisite: Jellyfin on M1Center (`http://192.168.50.154:8096`) must be up — it was down on
-2026-10-17. Expected and **not** a bug: the orange "Update to Jellyfin 12.1" banner in Settings.
+2026-10-17 afternoon, back at 18:00 (10.11.11). Expected and **not** a bug: the orange
+"Update to Jellyfin 12.1" banner in Settings.
 
-- [ ] Existing signed-in user survives the update (no forced re-login)
+**Worktree trap (hit 2026-10-17):** the gitignored `XcodeConfig/DevelopmentTeam.xcconfig` carries
+the `.local.cnaimi` bundle id, the signing team, the "Swiftfin Local" name and the badged icon.
+Without it the worktree builds a stock `org.jellyfin.swiftfin` app — on the simulator it installs
+*beside* the local app instead of over it, and on the TV it would collide with the App Store app
+and fail signing. The worktree now has symlinks for `Carthage`, `Cartfile.resolved` and
+`XcodeConfig/DevelopmentTeam.xcconfig` pointing at the main checkout. Check the bundle id in the
+built `Info.plist` before every install.
+
+Simulator run 2026-10-17 18:14 (Apple TV 4K 3rd gen, tvOS 26.2, Release build `a29cf3e4…` installed
+over the August build, md5 verified, bundle `org.jellyfin.swiftfin.local.cnaimi`). Evidence read from
+the app's Pulse store (`Library/Caches/Logs/com.github.kean.logger/current.pulse/logs.sqlite`,
+copied to `screens/pulse.sqlite`) and `lsof`:
+- ✅ Launched straight into Home with the stored session; CoreData + prefs migrated to the new container.
+- ✅ Websocket: server→client `outboundKeepAliveMessage` every 20 s on an established TCP connection
+  to `192.168.50.154:8096` — the 10.11 server accepted the `ApiKey` socket URL. (The "Socket
+  connected" line itself was swept from the store with the first 20 s of the session; Pulse trims on open.)
+- ✅ No non-2xx API responses, no decode errors, no warnings above debug except image 404s
+  (missing artwork, same as before).
+- ⚠️ First `/Items` + `/Items/Latest` took 18.9 s — server cold start after being down, not the app;
+  subsequent calls 0.01–0.7 s.
+- Screenshots: `screens/01-launch.png` (spinner), `02-home.png` (resume hero + À suivre),
+  `03-now.png` (Latest rows, landscape cards with thumbs).
+
+- [x] Existing signed-in user survives the update (no forced re-login) — simulator ✅
 - [ ] Sign out → sign in with password
 - [ ] Quick Connect sign-in
-- [ ] Home: Next Up hero, À suivre first row, hero logo width
+- [x] Home: resume hero, À suivre first row, Latest rows — simulator ✅ (`02-home.png`, `03-now.png`)
 - [ ] Leading sidebar navigation (Movies, TV Shows, libraries)
 - [ ] Filter menu: every filter, **unplayed / played mutually exclusive**, counts look right
 - [ ] Filters persist after relaunch, and after reinstall (keychain)
