@@ -117,6 +117,9 @@ extension BaseItemDto: Poster {
                 imageSource(.primary, environment: environment)
             }
         case .collectionFolder, .folder, .liveTvProgram, .musicVideo, .program, .userView, .video:
+            if environment.viewContext.contains(.isThumb) {
+                imageSource(.thumb, environment: environment)
+            }
             imageSource(.primary, environment: environment)
         default:
             if environment.viewContext.contains(.isThumb) {
