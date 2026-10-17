@@ -28,6 +28,44 @@ SDK 3.0.0 → 3.3.0 is **additive** (no deleted/renamed files or enum cases); th
 hand-written changes are `JellyfinClient.swift` (`api_key`→`ApiKey`) and `QuickConnect.swift`
 (transient poll tolerance). So the risky step is 2.1.0 → 3.0.0, i.e. Swiftfin #2172.
 
+## Review 2026-10-17 — will SDK 3.3.0 still work against the 10.11 server?
+
+**Yes.** Verified against the sources (not from memory):
+
+| Check | Result |
+|---|---|
+| 10.11 accepts the `ApiKey` query parameter? | ✅ `release-10.11.z` `AuthorizationContext.cs`: token sources are `Authorization` header → `X-Emby-Token` → `X-MediaBrowser-Token` → **`ApiKey` (always)** → `api_key` (legacy only). Same code in 12.0, so one socket URL works on both. |
+| SDK 3.x `Package.swift` platforms | ✅ unchanged 2.1.0 → 3.3.0 (only the generator plugin bumps 0.7.1 → 0.8.0) |
+| Endpoints deleted in SDK 3.0.0 (25 files: `OnPlayback*`, `*Hls*`, `StopEncodingProcess`, `GetMusicGenres`, `GetCriticReviews`, …) | ✅ our code calls only `Paths.stopEncodingProcess` (`MediaProgressObserver.swift:165`), which #2172 removes. Transcoding is driven by `TranscodingUrl` from `PlaybackInfo`, not the SDK HLS paths. |
+| Entities deleted (`ConfigImageTypes`, `SubtitleOptions`) | ✅ unused |
+| Fields 12.x made **required** (decode would throw on a 10.11 reply that omits them) | ✅ only `UserItemDataDto.key` and `LogFile.name` matter to us; 10.11 always sends both. The rest are Backup / Storage / Database / Lyrics DTOs (12-only features we never request). |
+| `JellyfinSocket` public API 2.1.0 → 3.3.0 | additive: `SocketError`, `SubscriptionToken.cancel()`. #2172 brings the matching `ServerSocketManager` rewrite. |
+| Files #2172 touches vs our branch | identical to upstream except `MediaPlayerManager.swift` (small drift, applies), `ServerSocketManager.swift` (we removed the playback-command surface from #2150; hunks still apply), `PosterSection.swift` (hand-apply), `UserSessionManager+SocketCommands.swift` (absent → drop hunk) |
+
+Side effects to **expect** on 10.11 (not bugs):
+
+- **Version-warning banner appears in Settings and in the server edit page.** `isVersionCompatible`
+  compares the server version to the SDK's `client.version`, which jumps `10.11.8` → `12.1.0`
+  with SDK 3.3.0. Nothing gates on it (two label sites only). #2230 only softens the wording to
+  "Update to Jellyfin 12.1 for the best experience". It disappears once the server is 12.x.
+- **No explicit kill of transcodes on stop** (`stopEncodingProcess` gone). The server's own idle
+  timeout cleans them up; same behaviour as upstream 1.6.
+- **Admin → Devices batch delete** sends `?id=a&id=b`; a 10.11 server binds only the first value,
+  so deleting several devices at once removes one. Admin-only, rare, fixed by the server upgrade.
+- `deleteDevice`, `getItemCollections` and other 12-only paths are not used on our tvOS screens.
+
+Corrections to the original plan:
+
+- Tripwire "no `.sidebarAdaptable`" was wrong: **our own** sidebar (`46f54208`) uses
+  `.tabViewStyle(.sidebarAdaptable)` at `MainTabView.swift:137`. The real tripwire is that our
+  `MainTabView` backport (comment block at lines 96–100) is untouched by any import.
+- The dry run was a cherry-pick only, **never a build**. Compile errors in local-only code (filter
+  menu, sidebar, home hero) against SDK 3 types are found in Phase 2, not before.
+- Restore tag goes on `d80f7ec8` (= `25f05579` + the plan doc; identical binary). The TV was
+  built from `25f05579`: reflog shows the checkout at 16:50:48, deploy logs at 16:50:51/16:51:06.
+- The M1Center Jellyfin service was **down** during the review (host pings, 8096/8920/80 refuse).
+  Phase 5 needs it back; this is a user action.
+
 ## Dry-run results (cherry-picked onto `1.6_sidebar_filter` in a throwaway worktree)
 
 | Commit | Upstream | Result | Resolution |
@@ -52,7 +90,7 @@ hand-written changes are `JellyfinClient.swift` (`api_key`→`ApiKey`) and `Quic
 
 - [ ] `Swiftfin tvOS/Resources/Info.plist` → `UIDesignRequiresCompatibility` still `true`
 - [ ] `Defaults[.isLiquidGlassEnabled]` still exists, default `false`
-- [ ] `MainTabView` has no `.tabViewStyle(.sidebarAdaptable)` (our own sidebar stays)
+- [ ] `MainTabView.swift` still carries our sidebar backport (`git diff 46f54208 -- Shared/Coordinators/Tabs/MainTabView.swift` is empty, or only our own edits)
 - [ ] `Swiftfin tvOS/Views/ItemView/` folder still present
 
 ## ⚠️ Deploy automation caveat
@@ -67,12 +105,12 @@ Recommended: separate worktree (`git worktree add ../Swiftfin-sdk3 1.6.1_sidebar
 ---
 
 ## Phase 0 — Safety net
-- [ ] Tag `local-1.6-sidebar-pre-sdk3-2026-10-17` on `25f05579` and push it
-- [ ] Confirm the TV build matches `1.6_sidebar_filter` (deployed 2026-10-17 16:51, profile until 2026-10-24)
+- [x] Tag `local-1.6-sidebar-pre-sdk3-2026-10-17` on `d80f7ec8` and push it — done 2026-10-17
+- [x] Confirm the TV build matches `1.6_sidebar_filter` — built from `25f05579` at 16:50 (reflog + deploy logs), profile until 2026-10-24
 
 ## Phase 1 — Branch
-- [ ] `git branch 1.6.1_sidebar_filter_sdk3.3.0 1.6_sidebar_filter`, work in a separate worktree
-- [ ] Push the empty branch to `origin`
+- [x] `git branch 1.6.1_sidebar_filter_sdk3.3.0 d80f7ec8`, worktree at `../Swiftfin-sdk3` — done 2026-10-17
+- [x] Pushed the branch to `origin` (tracking set)
 
 ## Phase 2 — SDK 3.0.0 (#2172)
 - [ ] `git cherry-pick -x ffd850a6`, resolve as in the dry-run table
@@ -101,6 +139,9 @@ Recommended: separate worktree (`git worktree add ../Swiftfin-sdk3 1.6.1_sidebar
 Simulator: resolve the bundle id from the built `Info.plist` and md5-compare the installed
 binary before trusting anything (stale-app trap). Scripted input is blocked, so navigation
 checks need the user.
+
+Prerequisite: Jellyfin on M1Center (`http://192.168.50.154:8096`) must be up — it was down on
+2026-10-17. Expected and **not** a bug: the orange "Update to Jellyfin 12.1" banner in Settings.
 
 - [ ] Existing signed-in user survives the update (no forced re-login)
 - [ ] Sign out → sign in with password
@@ -152,3 +193,6 @@ Rollback:
 
 ## Progress log
 - 2026-10-17 — Analysis + dry-run done, plan written. No code changed yet.
+- 2026-10-17 — Plan reviewed against the server / SDK sources (section above). Phase 0 + 1 done:
+  tag `local-1.6-sidebar-pre-sdk3-2026-10-17`, branch `1.6.1_sidebar_filter_sdk3.3.0` in
+  worktree `../Swiftfin-sdk3`, both pushed. Main checkout stays on `1.6_sidebar_filter`.
