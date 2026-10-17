@@ -112,28 +112,26 @@ Recommended: separate worktree (`git worktree add ../Swiftfin-sdk3 1.6.1_sidebar
 - [x] `git branch 1.6.1_sidebar_filter_sdk3.3.0 d80f7ec8`, worktree at `../Swiftfin-sdk3` — done 2026-10-17
 - [x] Pushed the branch to `origin` (tracking set)
 
-## Phase 2 — SDK 3.0.0 (#2172)
-- [ ] `git cherry-pick -x ffd850a6`, resolve as in the dry-run table
-- [ ] Re-add the new strings (`narrator`, `videoRotationNotSupported`) to `en.lproj/Localizable.strings` with Python `encoding="utf-16"`
-- [ ] Re-resolve packages (`xcodebuild -resolvePackageDependencies`)
-- [ ] Build tvOS Release (`-skipMacroValidation`, **check the exit code, don't pipe into `tail`**)
-- [ ] Fix any compile errors in our local code (only known call site, `MediaPlayerManager.swift:425 UserItemDataDto()`, is covered by #2172)
-- [ ] Tripwires ✓
-- [ ] Commit, push
+## Phase 2 — SDK 3.0.0 (#2172) — `70e957a3`
+- [x] `git cherry-pick -x ffd850a6`, resolved as in the dry-run table (`UserSessionManager+SocketCommands.swift` → `git rm`; `PosterSection.swift` → `key: ""` only, we never had `unplayedItemCount`)
+- [x] Re-added `narrator` / `videoRotationNotSupported` to `en.lproj/Localizable.strings` (UTF-16, `///` comment style like the neighbours, `plutil -lint` OK)
+- [x] Re-resolved packages — **note:** the pin is up-to-next-major, so raising the floor to 3.0.0 resolved straight to **3.3.0**. Phase 2 and 3 therefore built against the same SDK.
+- [x] Build tvOS Release — exit 0, no compile errors in local code. The worktree needs `Carthage -> ../Swiftfin/Carthage` (symlink, ignored) or the build stops on the missing `TVVLCKit.xcframework` before compiling anything.
+- [x] Tripwires ✓
 
-## Phase 3 — SDK 3.3.0
-- [ ] Set `jellyfin-sdk-swift` to `3.3.0` (pbxproj minimum version + `Package.resolved`), re-resolve
-- [ ] Build tvOS Release ✓
-- [ ] Verify in the checkout: `JellyfinClient.swift` uses `ApiKey` (not `api_key`) in `socketURL`
-- [ ] Commit `chore: jellyfin-sdk-swift 3.3.0 (upstream #2267 #2296 #2352)`, push
+## Phase 3 — SDK 3.3.0 — `fad74f51`
+- [x] pbxproj minimum `3.0.0` → `3.3.0` for the jellyfin block **only** (SVGKit and Factory are also pinned at 3.0.0 — a blanket replace breaks the resolve)
+- [x] `JellyfinClient.swift` in the checkout uses `ApiKey` at both sites (`url(with:queryAPIKey:)` and `socketURL`); `git describe` says `3.3.0`
 
-## Phase 4 — 1.6.1 fixes (one commit each, `-x`, build after each batch)
-- [ ] #2236 `5b794d2b`
-- [ ] #2238 `5e59e245`
-- [ ] #2230 `759b4ced` (strings in UTF-16)
-- [ ] Evaluate, take or skip: #2232 `0adebd32` · #2225 `961f1325` · #2173 `d5be7a05`
-- [ ] Optional: #2203 `6ac865ba` · #2228 `43bcfaba` · #2205/#2204
-- [ ] Tripwires ✓, build ✓, push
+## Phase 4 — 1.6.1 fixes (one commit each, `-x`)
+- [x] #2236 `5b794d2b` → `a887b2cd` (clean)
+- [x] #2238 `5e59e245` → `92fa8e2d` (clean; `pauseOnBackground` default and `onSceneDidEnterBackground` already exist on our branch)
+- [x] #2230 `759b4ced` → `04324d93` (strings conflict; `serverVersionWarning` re-applied in UTF-16)
+- [x] #2232 `0adebd32` → `0cc41184`, hand-applied in `landscapeImageSources` (our case list includes `liveTvProgram`/`program`); same thumb-first pattern the `default:` branch already had
+- [ ] #2225 `961f1325` **on hold** — our tvOS `SearchView` has none of the 1.6 focus-coordinator structure the overlap came from. Apply (`.edgePadding(.top)` after `.searchable`) only if Phase 5 shows the search field overlapping results.
+- [x] #2173 `d5be7a05` **skipped** — needs the `PresentedRoute.coordinator` refactor of `NavigationCoordinator`; our `NavigationInjectionView` diverged (older `.presentation` API). Deep links are not a local-build feature.
+- [x] Optional #2203 / #2228 / #2205 / #2204 **skipped** (not needed; #2203 changes the deployment target for no benefit)
+- [x] Tripwires ✓ (compat flag `true`, glass default `false`, `MainTabView` byte-identical to `46f54208`, `ItemView/` present), tvOS Release build exit 0, pushed
 
 ## Phase 5 — Test on the current 10.11 server (simulator first, then TV)
 Simulator: resolve the bundle id from the built `Info.plist` and md5-compare the installed
@@ -196,3 +194,9 @@ Rollback:
 - 2026-10-17 — Plan reviewed against the server / SDK sources (section above). Phase 0 + 1 done:
   tag `local-1.6-sidebar-pre-sdk3-2026-10-17`, branch `1.6.1_sidebar_filter_sdk3.3.0` in
   worktree `../Swiftfin-sdk3`, both pushed. Main checkout stays on `1.6_sidebar_filter`.
+- 2026-10-17 — Phases 2–4 done in one sitting: `70e957a3` (#2172), `fad74f51` (SDK 3.3.0 pin),
+  `a887b2cd` `92fa8e2d` `04324d93` `0cc41184` (#2236 #2238 #2230 #2232). Three tvOS Release builds,
+  all exit 0, zero local compile errors. #2225 on hold, #2173 skipped. **Next: Phase 5** — needs the
+  M1Center Jellyfin service back up (it was down all afternoon) and the user at the remote.
+  Build products for the simulator: `xcodebuild … -destination 'generic/platform=tvOS Simulator'`
+  with `-derivedDataPath ~/Library/Developer/Xcode/DerivedData/SwiftfinSdk3`.
