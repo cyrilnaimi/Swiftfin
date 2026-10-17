@@ -224,3 +224,7 @@ Rollback:
   M1Center Jellyfin service back up (it was down all afternoon) and the user at the remote.
   Build products for the simulator: `xcodebuild … -destination 'generic/platform=tvOS Simulator'`
   with `-derivedDataPath ~/Library/Developer/Xcode/DerivedData/SwiftfinSdk3`.
+- 2026-10-17 18:30 — Simulator smoke test on 10.11.11 passed (session kept, Home renders, `ApiKey`
+  websocket alive, no API/decode errors). **User's call: the remaining Phase 5 items (filters,
+  playback, overlay/Active Sessions, search) are deferred and will be run after the server upgrade,
+  together with the Phase 7 re-test.** Branch pushed at this point; worktree clean.
