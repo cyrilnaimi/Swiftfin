@@ -187,8 +187,9 @@ copied to `screens/pulse.sqlite`) and `lsof`:
 - [~] Use it for a few days on 10.11 — skipped: the server went to 12.2.0 the same day
 - [x] Tag `local-1.6.1-sdk3.3.0-2026-10-18` (local; push pending)
 - [x] Switch the main checkout to the new branch (the weekly Shortcut now deploys it).
-  The worktree `../Swiftfin-sdk3` is now on a detached HEAD, because git allows a branch in only one checkout.
-- [x] Update memory (`docs/local-dev-plan.md` restore-points table still to do)
+  The worktree `../Swiftfin-sdk3` was then removed (2026-10-18); its screenshots and TV logs moved to the
+  gitignored `screens/sdk3-upgrade-2026-10/` of the main checkout. Single checkout from here on.
+- [x] Update `docs/local-dev-plan.md` restore-points table + memory
 
 Result on Jellyfin **12.2.0** (TV Pulse log, user session 2026-10-18 16:34–16:36): no 401s, websocket
 connected and streaming, Home / Next Up / Resume / Latest / show pages OK, playback
@@ -196,6 +197,10 @@ start/progress/stop accepted (204). Only failures: 404 on artwork the server doe
 (Thumb, Logo, Chapter) — same as the pre-upgrade session. Filters, unread filter and search not yet exercised.
 
 ## Phase 7 — Upgrade the server to Jellyfin 12.0 (only when Phase 6 is solid)
+
+**Status 2026-10-18: server upgraded by the user to Jellyfin 12.2.0.** Pre-flight was done on the
+server side by the user (not verified from here). Re-test is partial — see below.
+
 Pre-flight:
 - [ ] Full server backup (config + database); upgrade path requires 10.10.7 or any 10.11.x
 - [ ] Remove third-party plugins (10.11 builds won't load on 12.0); official plugins are fine
@@ -203,13 +208,13 @@ Pre-flight:
 - [ ] Note other clients in the house (App Store Swiftfin, web, etc.) — very old ones will stop working
 
 Upgrade:
-- [ ] Upgrade to 12.0, run a full library scan
+- [x] Upgrade to 12.x — M1Center reports **12.2.0** (2026-10-18). Library scan: user's side
 - [ ] Leave `EnableLegacyAuthorization` at its default **`false`**
 
 Re-test the full Phase 5 checklist on 12.0, with extra attention to:
-- [ ] Websocket features (overlay session info, Active Sessions) — the reason for SDK 3.2+
+- [~] Websocket features — socket connects with `ApiKey` and streams messages on 12.2.0 (TV log). Overlay session info / Active Sessions screens not yet opened
 - [ ] Filter results/counts (12.0 `GetItems` recursion change)
-- [ ] Version warning text in Settings
+- [ ] Version warning text in Settings (the 12.1 banner should be gone on 12.2.0)
 
 Rollback:
 - App: redeploy `1.6_sidebar_filter` (tag `local-1.6-sidebar-pre-sdk3-2026-10-17`) — on 12.0 it needs `EnableLegacyAuthorization=true` in `system.xml` for the websocket features
@@ -235,3 +240,10 @@ Rollback:
   websocket alive, no API/decode errors). **User's call: the remaining Phase 5 items (filters,
   playback, overlay/Active Sessions, search) are deferred and will be run after the server upgrade,
   together with the Phase 7 re-test.** Branch pushed at this point; worktree clean.
+- 2026-10-18 — **Phase 6 done.** Built and installed from the worktree with `Scripts/deploy-appletv.sh`
+  (profile until 2026-10-25 16:31). The user upgraded M1Center to **Jellyfin 12.2.0** and used the app;
+  TV Pulse log: no 401s, websocket up, playback reported, only artwork 404s. Main checkout switched
+  to `1.6.1_sidebar_filter_sdk3.3.0`, so the weekly Shortcut now deploys this build. Tag
+  `local-1.6.1-sdk3.3.0-2026-10-18` pushed. Worktree removed. **Still open:** filters, unread filter,
+  search, Active Sessions and the overlay on 12.2.0. Old branches `1.6_sidebar_filter`, `1.5_filter`,
+  `sync/upstream-base` are fully contained in this branch and covered by tags; kept for now.

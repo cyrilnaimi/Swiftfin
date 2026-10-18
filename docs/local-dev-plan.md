@@ -4,45 +4,39 @@
 
 # ⛑ RESTORE POINTS — read this first if something is broken
 
-**Last updated 2026-08-15.** Working branch: **`local/appletv-dev-v4`**, base = tag `1.5`.
-Every restore point below is a real annotated tag; none of them has ever been force-moved.
+**Last updated 2026-10-18.** Working branch: **`1.6.1_sidebar_filter_sdk3.3.0`** (Jellyfin SDK 3.3.0,
+works with Jellyfin 10.11 and 12.x). The main checkout is on it, so the weekly "Swiftfin.local update"
+Shortcut deploys it. The server (M1Center) runs **Jellyfin 12.2.0** since 2026-10-18.
+Every restore point below is a real tag; none of them has ever been force-moved. All are pushed.
 
 ### What is where
 
 | Restore point | Commit | State | Where it runs |
 |---|---|---|---|
-| `local-v4-1.6-cherrypicks-2026-08-15` | `8b1bccc2` | v4 + hero-logo fix + **15 cherry-picks from upstream 1.6** | **← ON THE APPLE TV** (Release, profile expires **2026-08-22 18:06**) |
-| `local-v4-hero-logo-fix-2026-08-15` | `fa89102f` | v4 + hero-logo fix only. Last state pushed to `origin` | briefly on the TV earlier the same day |
-| `local-v4-pre-scrolling-grid-2026-08-08` | `82ff8161` | v4 **before** the drawer/title scrolling rewrite | — |
-| `local-v2-2026-08-01` (branch `local/appletv-dev-v2`) | `c3596382` | the long-deployed v2 build | was on the TV until 2026-08-15 |
-| `local/appletv-dev` | `3ce19f76` | P9 legacy, untouched since 2026-07-12 | — |
+| `local-1.6.1-sdk3.3.0-2026-10-18` (branch `1.6.1_sidebar_filter_sdk3.3.0`) | `906b7a68` | sidebar + stacked filter menu + **SDK 3.3.0** (Jellyfin 12 ready) | **← ON THE APPLE TV** (Release, profile expires **2026-10-25 16:31**) |
+| `local-1.6-sidebar-pre-sdk3-2026-10-17` (branch `1.6_sidebar_filter`) | `d80f7ec8` | same app on the old SDK. **On Jellyfin 12 it needs `EnableLegacyAuthorization=true` in the server's `system.xml`** | was on the TV 2026-10-17 |
+| `local-v4-1.6-cherrypicks-2026-08-15` (branch `1.5_filter` = this + 1 doc commit) | `8b1bccc2` | v4 + 15 cherry-picks from upstream 1.6, top tab bar, pill drawer | was on the TV 2026-08-15 → 2026-10-17 |
+| `local-v2-2026-08-01` | `c3596382` | the long-deployed v2 build | was on the TV until 2026-08-15 |
+| `local-p9-archive-2026-07-29` | `3ce19f76` | P9 legacy | — |
 | `local-v3-archive-2026-08-02` | `0400265a` | wiped v3 (rebuilt on `upstream/main` — **rejected**, do not resurrect) | — |
 
 ### Rollback recipes
 
-**Roll the branch back** (loses nothing — the tags keep every state reachable):
+**Put an older build back on the Apple TV** — the deploy script builds whatever is checked out, so
+check the tag out first, and switch back afterwards or the next Shortcut run deploys the old build again:
 
-    git reset --hard local-v4-hero-logo-fix-2026-08-15
-
-**Put an older build back on the Apple TV** — the deploy script builds from the working tree, so
-check the tag out first:
-
-    git checkout local-v4-hero-logo-fix-2026-08-15   # detached HEAD
+    git checkout local-1.6-sidebar-pre-sdk3-2026-10-17   # detached HEAD
     ./Scripts/deploy-appletv.sh
-    git checkout local/appletv-dev-v4                # back to work
+    git checkout 1.6.1_sidebar_filter_sdk3.3.0           # back to the current build
 
-**Drop a single bad cherry-pick** instead of rolling everything back — each one is an isolated
-commit carrying its upstream hash in the message:
+**Drop a single bad commit** instead of rolling everything back — each cherry-pick is an isolated
+commit carrying its upstream PR number in the message:
 
-    git revert <commit>          # e.g. git revert 942c79ee   (the HEVC device profile)
+    git revert <commit>
 
-### Sync state — IMPORTANT
+### Sync state
 
-`origin/local/appletv-dev-v4` is at **`fa89102f`**. The 16 commits after it and the tag
-`local-v4-1.6-cherrypicks-2026-08-15` are **local-only** — they exist on this machine and on the
-Apple TV, nowhere else. Push before relying on them surviving a disk loss:
-
-    git push origin local/appletv-dev-v4 && git push origin local-v4-1.6-cherrypicks-2026-08-15
+Everything is pushed to `origin` (2026-10-18): the working branch and every tag above.
 
 ### Standing traps when verifying a rollback
 
