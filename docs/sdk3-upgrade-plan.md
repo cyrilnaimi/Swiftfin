@@ -182,11 +182,18 @@ copied to `screens/pulse.sqlite`) and `lsof`:
 - [ ] Item with a Narrator credit opens (if any in the library)
 
 ## Phase 6 — Cut over on the TV
-- [ ] Deploy `1.6.1_sidebar_filter_sdk3.3.0` with `Scripts/deploy-appletv.sh`, verify the installed binary
-- [ ] Use it for a few days on 10.11
-- [ ] Tag `local-1.6.1-sdk3.3.0-<date>`, push
-- [ ] Switch the main checkout to the new branch (the weekly Shortcut now deploys it)
-- [ ] Update `docs/local-dev-plan.md` restore-points table + memory
+- [x] Deploy `1.6.1_sidebar_filter_sdk3.3.0` with `Scripts/deploy-appletv.sh`, verify the installed binary
+  (2026-10-18 16:31, run from the worktree; profile until 2026-10-25 16:31)
+- [~] Use it for a few days on 10.11 — skipped: the server went to 12.2.0 the same day
+- [x] Tag `local-1.6.1-sdk3.3.0-2026-10-18` (local; push pending)
+- [x] Switch the main checkout to the new branch (the weekly Shortcut now deploys it).
+  The worktree `../Swiftfin-sdk3` is now on a detached HEAD, because git allows a branch in only one checkout.
+- [x] Update memory (`docs/local-dev-plan.md` restore-points table still to do)
+
+Result on Jellyfin **12.2.0** (TV Pulse log, user session 2026-10-18 16:34–16:36): no 401s, websocket
+connected and streaming, Home / Next Up / Resume / Latest / show pages OK, playback
+start/progress/stop accepted (204). Only failures: 404 on artwork the server doesn't have
+(Thumb, Logo, Chapter) — same as the pre-upgrade session. Filters, unread filter and search not yet exercised.
 
 ## Phase 7 — Upgrade the server to Jellyfin 12.0 (only when Phase 6 is solid)
 Pre-flight:
