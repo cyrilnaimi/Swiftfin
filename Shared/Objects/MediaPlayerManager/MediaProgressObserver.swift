@@ -70,14 +70,23 @@ class MediaProgressObserver: ViewModel, MediaPlayerObserver {
         manager.$playbackRequestStatus
             .sink { [weak self] in self?.playbackRequestStatusDidChange($0) }
             .store(in: &cancellables)
+
+        Notifications[.applicationWillTerminate]
+            .publisher
+            .sink { [weak self] _ in self?.endPlaybackSession() }
+            .store(in: &cancellables)
+    }
+
+    private func endPlaybackSession() {
+        guard let item else { return }
+        sendStopReport(for: item, seconds: manager?.seconds)
     }
 
     private func playbackItemDidChange(_ newItem: MediaPlayerItem?) {
         timer.poke()
 
         if let item, newItem !== item {
-            sendStopReport(for: item, seconds: manager?.seconds)
-
+            endPlaybackSession()
             self.item = newItem
             self.hasSentStart = false
             sendReport()
@@ -94,9 +103,7 @@ class MediaProgressObserver: ViewModel, MediaPlayerObserver {
     private func didReceive(action: MediaPlayerManager._Action) {
         switch action {
         case .stop:
-            if let item {
-                sendStopReport(for: item, seconds: manager?.seconds)
-            }
+            endPlaybackSession()
             timer.stop()
             cancellables = []
             item = nil
@@ -114,6 +121,7 @@ class MediaProgressObserver: ViewModel, MediaPlayerObserver {
             var info = PlaybackStateInfo()
             info.audioStreamIndex = item.selectedAudioStreamIndex
             info.itemID = item.baseItem.id
+            info.liveStreamID = item.mediaSource.liveStreamID
             info.mediaSourceID = item.mediaSource.id
             info.playSessionID = item.playSessionID
             info.positionTicks = seconds?.ticks
@@ -121,7 +129,7 @@ class MediaProgressObserver: ViewModel, MediaPlayerObserver {
             info.subtitleStreamIndex = item.selectedSubtitleStreamIndex
 
             let request = Paths.reportPlaybackStart(info)
-            let _ = try await userSession.client.send(request)
+            try await send(request)
 
             self.hasSentStart = true
         }
@@ -136,12 +144,14 @@ class MediaProgressObserver: ViewModel, MediaPlayerObserver {
         Task {
             var info = PlaybackStopInfo()
             info.itemID = item.baseItem.id
+            info.liveStreamID = item.mediaSource.liveStreamID
             info.mediaSourceID = item.mediaSource.id
+            info.playSessionID = item.playSessionID
             info.positionTicks = seconds?.ticks
             info.sessionID = item.playSessionID
 
             let request = Paths.reportPlaybackStopped(info)
-            let _ = try await userSession.client.send(request)
+            try await send(request)
         }
     }
 
@@ -156,6 +166,7 @@ class MediaProgressObserver: ViewModel, MediaPlayerObserver {
             info.audioStreamIndex = item.selectedAudioStreamIndex
             info.isPaused = isPaused
             info.itemID = item.baseItem.id
+            info.liveStreamID = item.mediaSource.liveStreamID
             info.mediaSourceID = item.mediaSource.id
             info.playSessionID = item.playSessionID
             info.positionTicks = seconds?.ticks
@@ -163,7 +174,7 @@ class MediaProgressObserver: ViewModel, MediaPlayerObserver {
             info.subtitleStreamIndex = item.selectedSubtitleStreamIndex
 
             let request = Paths.reportPlaybackProgress(info)
-            let _ = try await userSession.client.send(request)
+            try await send(request)
         }
     }
 }

@@ -1,13 +1,13 @@
 {
-  "originHash" : "0c77c8dc6de2eaf29e2ab9081cbbe3dbb5c18c3748e8d086a4ee38c5ff73bbae",
+  "originHash" : "ecea6ce6cb040f6c93301b431b489ffd3b3e1729bfedc99abb72a2645699e796",
   "pins" : [
     {
       "identity" : "blurhashkit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/LePips/BlurHashKit",
       "state" : {
-        "revision" : "c0bd7423398de68cbeb3f99bff70f79c38bf36ab",
-        "version" : "1.2.0"
+        "revision" : "19847aa26cdea6859694f6583ab41d3c4412afb6",
+        "version" : "2.0.0"
       }
     },
     {
@@ -34,7 +34,7 @@
       "location" : "https://github.com/LePips/CollectionVGrid",
       "state" : {
         "branch" : "main",
-        "revision" : "e5b869ca215504ed24fc2c39f284ebce4cad5ce8"
+        "revision" : "b6f489c85fbd642295aef64e02d05476d30e10fa"
       }
     },
     {
@@ -78,8 +78,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hmlongco/Factory",
       "state" : {
-        "revision" : "ccc898f21992ebc130bc04cc197460a5ae230bcf",
-        "version" : "2.5.3"
+        "revision" : "cacafd638e8af1dac8abd6a4ab013d53983e2703",
+        "version" : "3.2.1"
       }
     },
     {
@@ -105,8 +105,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jellyfin/jellyfin-sdk-swift.git",
       "state" : {
-        "revision" : "09d8f31886b6bea1cfc4719a39bdb6eac1287344",
-        "version" : "2.1.0"
+        "revision" : "8ce10a167ad0b4145b2bc005acf8bebcfe6ebe46",
+        "version" : "3.3.0"
       }
     },
     {
@@ -186,8 +186,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/LePips/StatefulMacro",
       "state" : {
-        "revision" : "705981b6886c4e9c450d079b468fadb5715a1e9a",
-        "version" : "0.0.2"
+        "revision" : "12d7ee449891457e8cc73074ac7aeba4b50f48ca",
+        "version" : "0.1.7"
       }
     },
     {
@@ -209,6 +209,15 @@
       }
     },
     {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser",
+      "state" : {
+        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
+        "version" : "1.8.2"
+      }
+    },
+    {
       "identity" : "swift-atomics",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-atomics.git",
@@ -222,8 +231,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-case-paths.git",
       "state" : {
-        "revision" : "206cbce3882b4de9aee19ce62ac5b7306cadd45b",
-        "version" : "1.7.3"
+        "revision" : "1197e80bc7e4b177051b6869ef93d8ac3ad677da",
+        "version" : "1.8.0"
       }
     },
     {
@@ -339,8 +348,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
-        "revision" : "dfd70507def84cb5fb821278448a262c6ff2bbad",
-        "version" : "1.9.0"
+        "revision" : "401bf70d95bfe8db2a1dc619f9e175a85c089321",
+        "version" : "1.10.1"
       }
     }
   ],

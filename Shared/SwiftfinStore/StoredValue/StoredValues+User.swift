@@ -7,7 +7,7 @@
 //
 
 import Defaults
-import Factory
+import FactoryKit
 import Foundation
 import JellyfinAPI
 
@@ -112,27 +112,11 @@ extension StoredValues.Keys {
             )
         }
 
-        static func libraryDisplayType(parentID: String?) -> Key<LibraryDisplayType> {
+        static func libraryStyle(id: String?) -> Key<LibraryStyle> {
             CurrentUserKey(
-                parentID,
-                field: "setting-libraryDisplayType",
-                default: Defaults[.Customization.Library.displayType]
-            )
-        }
-
-        static func libraryListColumnCount(parentID: String?) -> Key<Int> {
-            CurrentUserKey(
-                parentID,
-                field: "setting-libraryListColumnCount",
-                default: Defaults[.Customization.Library.listColumnCount]
-            )
-        }
-
-        static func libraryPosterType(parentID: String?) -> Key<PosterDisplayType> {
-            CurrentUserKey(
-                parentID,
-                field: "setting-libraryPosterType",
-                default: Defaults[.Customization.Library.posterType]
+                id,
+                field: "setting-libraryStyle",
+                default: .default
             )
         }
 
@@ -143,7 +127,11 @@ extension StoredValues.Keys {
             CurrentUserKey(
                 parentID,
                 field: "setting-libraryFilters",
-                default: ItemFilterCollection.default
+                default: ItemFilterCollection.default,
+                // Persist to the keychain so library filters survive an app
+                // reinstall (e.g. weekly Xcode re-deploy on tvOS). UserDefaults
+                // and CoreStore both live in the app container and are wiped.
+                storage: .keychain
             )
         }
 
@@ -214,6 +202,13 @@ extension StoredValues.Keys {
         static var forceHDRTranscode: Key<Bool> {
             CurrentUserKey(
                 field: "forceHDRTranscode",
+                default: false
+            )
+        }
+
+        static var forceSubtitleBurnIn: Key<Bool> {
+            CurrentUserKey(
+                field: "forceSubtitleBurnIn",
                 default: false
             )
         }

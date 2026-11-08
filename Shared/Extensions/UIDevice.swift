@@ -26,6 +26,30 @@ extension UIDevice {
         current.userInterfaceIdiom == .tv
     }
 
+    /// Whether the hardware can actually render Liquid Glass, as opposed to
+    /// merely running an OS version that has the API.
+    ///
+    /// Kept byte-identical to upstream PR #2224 so a later sync is a no-op.
+    static let supportsLiquidGlass: Bool = {
+        #if os(tvOS)
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let model = withUnsafeBytes(of: systemInfo.machine) { buffer in
+            String(decoding: buffer.prefix { $0 != 0 }, as: UTF8.self)
+        }
+        /// Apple TV HD and Apple TV 4K (1st gen) run tvOS 26 without Liquid Glass
+        /// - https://support.apple.com/en-us/106336
+        /// - See tvOS 26, footnote 2
+        return !["AppleTV5,3", "AppleTV6,2"].contains(model)
+        #else
+        if #available(iOS 26.0, *) {
+            return true
+        } else {
+            return false
+        }
+        #endif
+    }()
+
     static var hasNotch: Bool {
         (UIApplication.shared.keyWindow?.safeAreaInsets.bottom ?? 0) > 0 &&
             isPhone

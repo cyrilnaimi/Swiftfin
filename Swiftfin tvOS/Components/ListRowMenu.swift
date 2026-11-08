@@ -21,8 +21,14 @@ struct ListRowMenu<Content: View, Subtitle: View>: View {
     private let subtitle: Subtitle?
     private let content: () -> Content
 
+    /// See `BackportGlassEffectModifier.usesLiquidGlass` — the flag alone is not
+    /// enough, the hardware has to be able to render glass (upstream PR #2224).
+    private var usesLiquidGlass: Bool {
+        isLiquidGlassEnabled && UIDevice.supportsLiquidGlass
+    }
+
     private func buttonShape(cornerRadius: Double) -> AnyShape {
-        if #available(tvOS 26.0, *), isLiquidGlassEnabled {
+        if #available(tvOS 26.0, *), usesLiquidGlass {
             AnyShape(Capsule())
         } else {
             AnyShape(RoundedRectangle(cornerRadius: cornerRadius))
